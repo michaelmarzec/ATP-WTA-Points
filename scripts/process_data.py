@@ -22,12 +22,14 @@ ROUND_ORDER = ["R128", "R64", "R32", "R16", "QF", "SF", "F", "W"]
 ROUND_RANK = {r: i for i, r in enumerate(ROUND_ORDER)}
 
 POINTS = {
-    "G":   {"W": 2000, "F": 1300, "SF": 800, "QF": 400, "R16": 200, "R32": 100, "R64": 50, "R128": 10},
-    "M":   {"W": 1000, "F": 650,  "SF": 400, "QF": 200, "R16": 100, "R32": 50,  "R64": 30, "R128": 10},
-    "500": {"W": 500,  "F": 330,  "SF": 200, "QF": 100, "R16": 50,  "R32": 25},
-    "250": {"W": 250,  "F": 165,  "SF": 100, "QF": 50,  "R16": 25,  "R32": 13},
+    "G":      {"W": 2000, "F": 1300, "SF": 800, "QF": 400, "R16": 200, "R32": 100, "R64": 50, "R128": 10},
+    "M":      {"W": 1000, "F": 650,  "SF": 400, "QF": 200, "R16": 100, "R32": 50,  "R64": 30, "R128": 10},
+    # Paris and Monte-Carlo use 56-draw: early-round losers get fewer points
+    "M_small":{"W": 1000, "F": 650,  "SF": 400, "QF": 200, "R16": 100, "R32": 10,  "R64": 10},
+    "500":    {"W": 500,  "F": 330,  "SF": 200, "QF": 100, "R16": 50,  "R32": 25},
+    "250":    {"W": 250,  "F": 165,  "SF": 100, "QF": 50,  "R16": 25,  "R32": 13},
     # ATP Finals uses round-robin — approximate with SF/F structure
-    "F":   {"W": 1500, "F": 1000, "SF": 500, "RR": 200},
+    "F":      {"W": 1500, "F": 1000, "SF": 500, "RR": 200},
 }
 
 # Official ATP 500-level tournaments identified by name (stable across years,
@@ -73,18 +75,21 @@ def tourney_category(tourney_level, tourney_id, tourney_name=""):
     return "250"
 
 
-def points_for_result(category, round_str, won_final):
-    """Return ranking points for a player's result in a tournament."""
+def points_for_result(category, round_str, won_final, draw_size=96):
     if won_final:
         round_str = "W"
+    if category == "M" and draw_size <= 56:
+        category = "M_small"
     pts_table = POINTS.get(category, POINTS["250"])
     return pts_table.get(round_str, 0)
 
 
 def cutoff_date():
     today = date.today()
-    # 52-week rolling window (matches ATP ranking period)
-    cutoff = today - timedelta(weeks=52)
+    # 54-week window: ATP points expire ~52 weeks after a tournament ENDS
+    # (not when it starts), so a 2-week buffer captures late-May/early-June
+    # tournaments like Roland Garros whose points are still active
+    cutoff = today - timedelta(weeks=54)
     return int(cutoff.strftime("%Y%m%d"))
 
 
@@ -204,12 +209,17 @@ def main():
             continue
         key = (tid, tdate)
         if key not in tourneys:
+            try:
+                draw_size = int(m.get("draw_size", 96))
+            except ValueError:
+                draw_size = 96
             tourneys[key] = {
                 "name": tname,
                 "date": tdate,
                 "level": tlevel,
                 "category": cat,
                 "surface": m.get("surface", ""),
+                "draw_size": draw_size,
                 "winner": "",
                 "matches": [],
             }
@@ -270,8 +280,9 @@ def main():
                         entry["best_rank"] = rrank
                         entry["last_round"] = rnd
 
+        draw_size = t_info["draw_size"]
         for pid, entry in player_tourney.items():
-            pts = points_for_result(cat, entry["last_round"], entry["won_final"])
+            pts = points_for_result(cat, entry["last_round"], entry["won_final"], draw_size)
             if pts > 0:
                 player_results[pid][t_idx] = pts
 
