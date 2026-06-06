@@ -1,0 +1,32 @@
+name: Update WTA Rankings Data
+
+on:
+  schedule:
+    # Daily at 06:30 UTC (offset from ATP job to avoid overlap)
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run WTA data pipeline
+        run: python scripts/process_wta_data.py
+
+      - name: Commit updated data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/wta/rankings.json
+          git diff --staged --quiet || git commit -m "chore: update WTA rankings data $(date -u +%Y-%m-%d)"
+          git push
