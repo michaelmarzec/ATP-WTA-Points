@@ -19,11 +19,11 @@ ROUND_RANK = {r: i for i, r in enumerate(ROUND_ORDER)}
 # WTA points schedule
 # PM = WTA 1000, P = WTA 500, I = WTA 250, G = Grand Slam, F = WTA Finals
 POINTS = {
-    "G":    {"W": 2000, "F": 1300, "SF": 780, "QF": 430, "R16": 240, "R32": 130, "R64": 70, "R128": 10},
-    "1000": {"W": 1000, "F": 650,  "SF": 390, "QF": 215, "R16": 120, "R32": 65,  "R64": 1},
-    "500":  {"W": 470,  "F": 285,  "SF": 170, "QF": 95,  "R16": 57,  "R32": 28},
-    "250":  {"W": 280,  "F": 180,  "SF": 110, "QF": 60,  "R16": 35,  "R32": 6},
-    "F":    {"W": 1500, "F": 1000, "SF": 500, "RR": 125},
+    "G":    {"W": 2000, "F": 1300, "SF": 780,  "QF": 430, "R16": 240, "R32": 130, "R64": 70, "R128": 10},
+    "1000": {"W": 1000, "F": 650,  "SF": 390,  "QF": 215, "R16": 120, "R32": 65,  "R64": 35, "R128": 10},
+    "500":  {"W": 500,  "F": 325,  "SF": 195,  "QF": 108, "R16": 60,  "R32": 32},
+    "250":  {"W": 250,  "F": 163,  "SF": 98,   "QF": 54,  "R16": 30,  "R32": 1},
+    "F":    {"W": 1500, "F": 1000, "SF": 500,  "RR": 125},
 }
 
 EXCLUDED_LEVELS = {"D", "35+H", "50+H"}
@@ -64,7 +64,7 @@ def points_for_result(category, round_str, won_final):
 
 def cutoff_date():
     today = date.today()
-    cutoff = today - timedelta(days=14 * 30)
+    cutoff = today - timedelta(weeks=52)
     return int(cutoff.strftime("%Y%m%d"))
 
 
