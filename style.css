@@ -346,6 +346,53 @@ td.tier-f   { color: #f472b6; }
 
 td.empty { color: #1e2433; }
 
+/* ── Tournament tooltip ── */
+.tourney-tooltip {
+  position: fixed;
+  z-index: 200;
+  background: #141e2e;
+  border: 1px solid #2a3347;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  padding: 12px 14px;
+  min-width: 180px;
+  max-width: 240px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.tourney-tooltip.visible { opacity: 1; }
+.tourney-tooltip .tt-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f1f5f9;
+  margin-bottom: 8px;
+  line-height: 1.3;
+}
+.tourney-tooltip .tt-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 4px;
+}
+.tourney-tooltip .tt-val { color: #94a3b8; text-align: right; }
+.tourney-tooltip .tt-divider {
+  border: none;
+  border-top: 1px solid #1e2433;
+  margin: 8px 0;
+}
+.tourney-tooltip .tt-level-gs  { color: #fbbf24; }
+.tourney-tooltip .tt-level-m   { color: #34d399; }
+.tourney-tooltip .tt-level-500 { color: #60a5fa; }
+.tourney-tooltip .tt-level-250 { color: #a78bfa; }
+.tourney-tooltip .tt-level-f   { color: #f472b6; }
+.tourney-tooltip .tt-surf-hard  { color: #60a5fa; }
+.tourney-tooltip .tt-surf-clay  { color: #f97316; }
+.tourney-tooltip .tt-surf-grass { color: #34d399; }
+.tourney-tooltip .tt-winner { color: #e2e8f0; font-style: italic; }
+
 /* ── Column header two-line ── */
 th .th-label { display: inline; }
 th.col-tourney .th-label {

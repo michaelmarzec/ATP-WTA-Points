@@ -139,9 +139,10 @@
       const th = document.createElement("th");
       th.className = "col-tourney";
       th.dataset.sort = t.idx;
-      th.title = `${t.name} · ${fmtDate(t.date)} · ${t.category} · ${t.surface}`;
       th.innerHTML = `<span class="th-label">${shortName(t.name)}</span><span class="th-date">${fmtDateShort(t.date)}</span><span class="sort-arrow">▼</span>`;
       th.addEventListener("click", () => onSort(t.idx, th));
+      th.addEventListener("mouseenter", () => showTourneyTooltip(t, th.getBoundingClientRect()));
+      th.addEventListener("mouseleave", hideTourneyTooltip);
       if (state.sortCol === t.idx) {
         th.classList.add("sorted");
         th.querySelector(".sort-arrow").textContent = state.sortAsc ? "▲" : "▼";
@@ -557,6 +558,45 @@
     if (category === "500") return "tier-500";
     if (category === "F")   return "tier-f";
     return "tier-250";
+  }
+
+  // ── Tournament tooltip ─────────────────────────────────────────────────────
+  const ttEl = $("tourney-tooltip");
+
+  const LEVEL_LABEL = { G:"Grand Slam", M:"Masters 1000", "500":"ATP 500", "250":"ATP 250", F:"ATP Finals", "1000":"WTA 1000" };
+  const LEVEL_CLS   = { G:"tt-level-gs", M:"tt-level-m", "500":"tt-level-500", "250":"tt-level-250", F:"tt-level-f", "1000":"tt-level-m" };
+  const SURF_CLS    = { Hard:"tt-surf-hard", Clay:"tt-surf-clay", Grass:"tt-surf-grass" };
+
+  function showTourneyTooltip(t, rect) {
+    const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const d = t.date;
+    const dateStr = d && d.length >= 8
+      ? `${MONTHS[parseInt(d.slice(4,6),10)-1]} ${parseInt(d.slice(6,8),10)}, ${d.slice(0,4)}`
+      : "";
+
+    ttEl.innerHTML = `
+      <div class="tt-name">${t.name}</div>
+      <hr class="tt-divider">
+      <div class="tt-row"><span>Level</span><span class="tt-val ${LEVEL_CLS[t.category] || ""}">${LEVEL_LABEL[t.category] || t.category}</span></div>
+      <div class="tt-row"><span>Surface</span><span class="tt-val ${SURF_CLS[t.surface] || ""}">${t.surface || "—"}</span></div>
+      <div class="tt-row"><span>Date</span><span class="tt-val">${dateStr}</span></div>
+      ${t.winner ? `<hr class="tt-divider"><div class="tt-row"><span>Winner</span><span class="tt-val tt-winner">${t.winner}</span></div>` : ""}
+    `;
+
+    // Position: below the header cell, centered
+    const scrollX = window.scrollX || 0;
+    const scrollY = window.scrollY || 0;
+    const ttW = 220;
+    let left = rect.left + scrollX + rect.width / 2 - ttW / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth + scrollX - ttW - 8));
+    ttEl.style.left = left + "px";
+    ttEl.style.top  = (rect.bottom + scrollY + 6) + "px";
+    ttEl.style.width = ttW + "px";
+    ttEl.classList.add("visible");
+  }
+
+  function hideTourneyTooltip() {
+    ttEl.classList.remove("visible");
   }
 
   // ── Initial render (after all declarations) ────────────────────────────────
