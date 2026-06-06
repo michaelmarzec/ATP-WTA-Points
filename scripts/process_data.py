@@ -299,7 +299,7 @@ def main():
         "weeklyRankings": weekly_list,
     }
 
-    out_path = "data/rankings.json"
+    out_path = "data/atp/rankings.json"
     with open(out_path, "w") as f:
         json.dump(output, f, separators=(",", ":"))
 

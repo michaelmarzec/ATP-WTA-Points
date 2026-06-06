@@ -4,7 +4,8 @@
   // ── Load data ──────────────────────────────────────────────────────────────
   let data;
   try {
-    const resp = await fetch("data/rankings.json");
+    const tour = location.hostname === "wtapoints.com" || location.hostname === "www.wtapoints.com" ? "wta" : "atp";
+    const resp = await fetch(`data/${tour}/rankings.json`);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     data = await resp.json();
   } catch (e) {
