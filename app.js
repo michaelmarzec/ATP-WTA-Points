@@ -108,7 +108,11 @@
       let va, vb;
       if      (sortCol === "rank")   { va = a.rank; vb = b.rank; }
       else if (sortCol === "name")   { va = a.name; vb = b.name; }
-      else if (sortCol === "points") { va = a.filteredPts; vb = b.filteredPts; }
+      else if (sortCol === "points") {
+        const f = isFiltered();
+        va = f ? a.filteredPts : a.points;
+        vb = f ? b.filteredPts : b.points;
+      }
       else {
         va = a.tPts[sortCol] ?? 0;
         vb = b.tPts[sortCol] ?? 0;
@@ -202,10 +206,11 @@
       tdName.appendChild(document.createTextNode(p.name));
       tr.appendChild(tdName);
 
-      // Points (filtered sum)
+      // Points — official ranking points when unfiltered, computed sum when filtered
       const tdPts = document.createElement("td");
-      tdPts.className = "pts-total" + (isFiltered() ? " filtered" : "");
-      tdPts.textContent = fmt(p.filteredPts);
+      const filtered = isFiltered();
+      tdPts.className = "pts-total" + (filtered ? " filtered" : "");
+      tdPts.textContent = fmt(filtered ? p.filteredPts : p.points);
       tr.appendChild(tdPts);
 
       // Tournament columns

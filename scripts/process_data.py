@@ -22,12 +22,12 @@ ROUND_ORDER = ["R128", "R64", "R32", "R16", "QF", "SF", "F", "W"]
 ROUND_RANK = {r: i for i, r in enumerate(ROUND_ORDER)}
 
 POINTS = {
-    "G": {"W": 2000, "F": 1200, "SF": 720, "QF": 360, "R16": 180, "R32": 90, "R64": 45, "R128": 10},
-    "M": {"W": 1000, "F": 600,  "SF": 360, "QF": 180, "R16": 90,  "R32": 45, "R64": 25, "R128": 10},
-    "500": {"W": 500, "F": 300, "SF": 180, "QF": 90,  "R16": 45,  "R32": 20},
-    "250": {"W": 250, "F": 150, "SF": 90,  "QF": 45,  "R16": 20,  "R32": 10},
+    "G":   {"W": 2000, "F": 1300, "SF": 800, "QF": 400, "R16": 200, "R32": 100, "R64": 50, "R128": 10},
+    "M":   {"W": 1000, "F": 650,  "SF": 400, "QF": 200, "R16": 100, "R32": 50,  "R64": 30, "R128": 10},
+    "500": {"W": 500,  "F": 330,  "SF": 200, "QF": 100, "R16": 50,  "R32": 25},
+    "250": {"W": 250,  "F": 165,  "SF": 100, "QF": 50,  "R16": 25,  "R32": 13},
     # ATP Finals uses round-robin — approximate with SF/F structure
-    "F": {"W": 1500, "F": 1000, "SF": 500, "RR": 200},
+    "F":   {"W": 1500, "F": 1000, "SF": 500, "RR": 200},
 }
 
 # Official ATP 500-level tournaments identified by name (stable across years,
@@ -83,8 +83,8 @@ def points_for_result(category, round_str, won_final):
 
 def cutoff_date():
     today = date.today()
-    # Rolling ~14 months back
-    cutoff = today - timedelta(days=14 * 30)
+    # 52-week rolling window (matches ATP ranking period)
+    cutoff = today - timedelta(weeks=52)
     return int(cutoff.strftime("%Y%m%d"))
 
 
@@ -162,7 +162,7 @@ def main():
     # Tournaments excluded from ATP ranking points
     # Davis Cup (level "D") and Laver Cup (level "A" but team event, no ATP points)
     EXCLUDED_LEVELS = {"D"}
-    EXCLUDED_NAMES  = {"Laver Cup"}  # team events with no ATP ranking points
+    EXCLUDED_NAMES  = {"Laver Cup", "Next Gen Finals"}  # team events / non-ranking events
 
     print(f"\n[3] Fetching match data (cutoff {cutoff})...")
     all_matches = []
