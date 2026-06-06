@@ -29,6 +29,9 @@ POINTS = {
 EXCLUDED_LEVELS = {"D", "35+H", "50+H"}
 EXCLUDED_NAMES  = {"United Cup", "Billie Jean King Cup"}
 
+# Sackmann miscategorizes Strasbourg as "I" (250) but it is a WTA 500 event.
+WTA_500_NAME_OVERRIDES = {"Strasbourg"}
+
 
 def fetch_csv(url):
     print(f"  Fetching {url}")
@@ -36,7 +39,7 @@ def fetch_csv(url):
         return resp.read().decode("utf-8")
 
 
-def tourney_category(tourney_level):
+def tourney_category(tourney_level, tourney_name=""):
     if tourney_level in EXCLUDED_LEVELS:
         return None
     if tourney_level == "G":
@@ -46,7 +49,7 @@ def tourney_category(tourney_level):
     if tourney_level == "P":
         return "500"
     if tourney_level == "I":
-        return "250"
+        return "500" if tourney_name in WTA_500_NAME_OVERRIDES else "250"
     if tourney_level == "F":
         return "F"
     return None
@@ -162,7 +165,7 @@ def main():
         tdate = m.get("tourney_date", "")
         tname = m.get("tourney_name", "")
         tlevel = m.get("tourney_level", "")
-        cat = tourney_category(tlevel)
+        cat = tourney_category(tlevel, tname)
         if cat is None:
             continue
         key = (tid, tdate)
