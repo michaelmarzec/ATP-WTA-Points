@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 scripts/process_data.py)",
+      "Bash(python3 scripts/process_wta_data.py)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/JeffSackmann/*\")",
+      "Bash(curl -s \"https://api.github.com/repos/JeffSackmann/*\")",
+      "WebFetch(domain:en.wikipedia.org)",
+      "WebFetch(domain:www.atptour.com)",
+      "WebFetch(domain:www.wtatennis.com)",
+      "mcp__Claude_Preview__preview_start",
+      "mcp__Claude_Preview__preview_screenshot",
+      "mcp__Claude_Preview__preview_console_logs",
+      "mcp__Claude_Preview__preview_snapshot",
+      "mcp__Claude_Preview__preview_stop",
+      "mcp__Claude_Preview__preview_network",
+      "mcp__Claude_Preview__preview_logs"
+    ]
+  }
+}
