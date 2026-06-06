@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ATP Rankings Points Tracker</title>
+  <link rel="stylesheet" href="style.css?v=2" />
+</head>
+<body>
+  <header>
+    <h1>ATP Rankings Points Tracker</h1>
+    <p id="meta"></p>
+    <nav class="page-nav">
+      <a href="index.html" class="active">Table</a>
+      <a href="viz.html">Visualize</a>
+    </nav>
+  </header>
+
+  <div id="filters">
+    <!-- Player filter -->
+    <div class="filter-group" id="fg-players">
+      <label class="filter-label">Players</label>
+      <div class="player-filter">
+        <div id="player-tags"></div>
+        <div class="player-search-wrap">
+          <input id="player-search" type="text" placeholder="Search players…" autocomplete="off" />
+          <div id="player-dropdown" class="dropdown" hidden></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="filter-divider"></div>
+
+    <!-- Surface -->
+    <div class="filter-group">
+      <label class="filter-label">Surface</label>
+      <div class="chip-group" id="surface-chips">
+        <button class="chip active" data-surface="Hard">Hard</button>
+        <button class="chip active" data-surface="Clay">Clay</button>
+        <button class="chip active" data-surface="Grass">Grass</button>
+      </div>
+    </div>
+
+    <div class="filter-divider"></div>
+
+    <!-- Level -->
+    <div class="filter-group">
+      <label class="filter-label">Level</label>
+      <div class="chip-group" id="level-chips">
+        <button class="chip active" data-level="G">Grand Slam</button>
+        <button class="chip active" data-level="M">Masters</button>
+        <button class="chip active" data-level="500">ATP 500</button>
+        <button class="chip active" data-level="250">ATP 250</button>
+        <button class="chip active" data-level="F">Finals</button>
+      </div>
+    </div>
+
+    <div class="filter-divider"></div>
+
+    <!-- Date range -->
+    <div class="filter-group">
+      <label class="filter-label">Date range</label>
+      <div class="date-range">
+        <select id="date-from"></select>
+        <span class="date-sep">→</span>
+        <select id="date-to"></select>
+      </div>
+    </div>
+
+    <div class="filter-divider"></div>
+
+    <!-- Toggles -->
+    <div class="filter-group">
+      <label class="filter-label">Show</label>
+      <div class="chip-group">
+        <button class="chip" id="toggle-empty" data-on="false">Hide empty cols</button>
+        <button class="chip" id="toggle-favs" data-on="false">⭐ Favorites only</button>
+      </div>
+    </div>
+
+    <button id="reset-filters" class="reset-btn" hidden>Reset filters</button>
+  </div>
+
+  <div id="loading">Loading data…</div>
+  <div id="error" hidden></div>
+
+  <div id="table-wrap" hidden>
+    <div class="scroll-x">
+      <table id="rankings-table">
+        <thead><tr id="header-row"></tr></thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+    <div id="row-count"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
