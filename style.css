@@ -43,8 +43,8 @@ header {
 }
 .site-switch-bar a:hover { color: #93c5fd; background: #0d1928; }
 
-/* ── Page nav (Table / Visualize) ── */
-.page-nav { display:flex; gap:8px; margin-top:14px; }
+/* ── Page nav (Table / Visualize / About) ── */
+.page-nav { display:flex; align-items:center; gap:8px; margin-top:14px; }
 .page-nav a {
   font-size:14px; font-weight:700;
   padding:8px 24px; border-radius:8px;
@@ -58,6 +58,14 @@ header {
 .page-nav a.active {
   background:#1e3a5f; border-color:#2563eb; color:#93c5fd;
   box-shadow:0 0 0 1px #1d4ed8;
+}
+.nav-about {
+  margin-left:auto;
+  font-size:11px !important;
+  padding:5px 14px !important;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  border-color:#1e2433 !important;
 }
 header h1 {
   font-size: 18px;
@@ -504,26 +512,32 @@ footer a:hover { color: #93c5fd; }
 .modal-close:hover { color: #e2e8f0; background: #1e2433; }
 
 /* ── About page ── */
-.about-content {
-  max-width: 600px;
-  padding: 40px 24px;
+.about-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 60px 24px;
 }
-.about-content h2 {
-  font-size: 20px; font-weight: 700;
-  color: #f8fafc; margin-bottom: 16px;
+.about-card {
+  background: #0d1117;
+  border: 1px solid #1e2433;
+  border-radius: 16px;
+  padding: 40px 48px;
+  max-width: 560px;
+  width: 100%;
 }
-.about-content p {
+.about-card h2 {
+  font-size: 22px; font-weight: 700;
+  color: #f8fafc; margin-bottom: 20px;
+  letter-spacing: -0.01em;
+}
+.about-card p {
   font-size: 14px; color: #94a3b8;
-  line-height: 1.7; margin-bottom: 14px;
+  line-height: 1.75; margin-bottom: 16px;
 }
-.about-content a { color: #93c5fd; text-decoration: none; }
-.about-content a:hover { text-decoration: underline; }
-
-/* ── About nav link (smaller, muted) ── */
-.nav-about {
-  margin-left: auto;
-  font-size: 12px !important;
-  padding: 6px 14px !important;
-  opacity: 0.7;
+.about-card p:last-child { margin-bottom: 0; }
+.about-card a { color: #93c5fd; text-decoration: none; }
+.about-card a:hover { text-decoration: underline; }
+.about-divider {
+  border: none; border-top: 1px solid #1e2433;
+  margin: 24px 0;
 }
-.nav-about:hover { opacity: 1; }
