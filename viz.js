@@ -802,8 +802,7 @@
 
   // ── Modals ─────────────────────────────────────────────────────────────────
   function initModals() {
-    document.getElementById("btn-about")  ?.addEventListener("click", () => openModal("modal-about"));
-    document.getElementById("btn-privacy")?.addEventListener("click", () => openModal("modal-privacy"));
+    document.getElementById("btn-about")?.addEventListener("click", () => openModal("modal-about"));
     document.querySelectorAll(".modal-close").forEach(btn =>
       btn.addEventListener("click", () => closeModal(btn.dataset.close))
     );
