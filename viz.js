@@ -1,7 +1,7 @@
 (async () => {
   const $ = id => document.getElementById(id);
 
-  // ── Site switch pill ───────────────────────────────────────────────────────
+  // ── Site switch pill + title ───────────────────────────────────────────────
   const isWta = location.hostname === "wtapoints.com" || location.hostname === "www.wtapoints.com";
   const switchBar = document.querySelector(".site-switch-bar");
   if (switchBar) {
@@ -9,6 +9,10 @@
     const sisterLabel = isWta ? "ATP" : "WTA";
     const sisterHref  = isWta ? "https://atppoints.com" : "https://wtapoints.com";
     switchBar.innerHTML = `<span class="tour-label">${activeLabel}</span><a href="${sisterHref}">${sisterLabel}</a>`;
+  }
+  if (isWta) {
+    document.querySelector("h1").textContent = "WTA Points — Visualize";
+    document.title = "WTA Points — Visualize";
   }
 
   // ── Load data ──────────────────────────────────────────────────────────────
