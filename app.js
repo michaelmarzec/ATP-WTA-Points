@@ -612,20 +612,4 @@
   // ── Initial render (after all declarations) ────────────────────────────────
   render();
 
-  // ── Modals ─────────────────────────────────────────────────────────────────
-  function initModals() {
-    document.getElementById("btn-about")?.addEventListener("click", () => openModal("modal-about"));
-    document.querySelectorAll(".modal-close").forEach(btn =>
-      btn.addEventListener("click", () => closeModal(btn.dataset.close))
-    );
-    document.querySelectorAll(".modal-backdrop").forEach(el =>
-      el.addEventListener("click", e => { if (e.target === el) closeModal(el.id); })
-    );
-    document.addEventListener("keydown", e => {
-      if (e.key === "Escape") document.querySelectorAll(".modal-backdrop:not([hidden])").forEach(el => closeModal(el.id));
-    });
-  }
-  function openModal(id)  { document.getElementById(id).hidden = false; document.body.style.overflow = "hidden"; }
-  function closeModal(id) { document.getElementById(id).hidden = true;  document.body.style.overflow = ""; }
-  initModals();
 })();

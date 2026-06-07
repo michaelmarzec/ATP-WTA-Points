@@ -24,6 +24,7 @@
     <nav class="page-nav">
       <a href="index.html" class="active">Table</a>
       <a href="viz.html">Visualize</a>
+      <a href="about.html" class="nav-about">About</a>
     </nav>
   </header>
 
@@ -107,22 +108,6 @@
 
   <div id="tourney-tooltip" class="tourney-tooltip"></div>
 
-  <footer>
-    <span>Data via <a href="https://github.com/JeffSackmann" target="_blank" rel="noopener">Jeff Sackmann</a></span>
-    <span class="footer-sep">·</span>
-    <button class="footer-link" id="btn-about">About</button>
-  </footer>
-
-  <!-- About modal -->
-  <div class="modal-backdrop" id="modal-about" hidden>
-    <div class="modal">
-      <button class="modal-close" data-close="modal-about">✕</button>
-      <h2>About</h2>
-      <p>ATP Rankings Points Tracker breaks down each player's ranking points by tournament, so you can see exactly where their points come from and how filters like surface or date range affect their standing.</p>
-      <p>Point totals are sourced from the official ATP rankings. Tournament-level breakdowns are calculated from match results in <a href="https://github.com/JeffSackmann/tennis_atp" target="_blank" rel="noopener">Jeff Sackmann's tennis_atp dataset</a>, updated daily.</p>
-      <p>Sister site: <a href="https://wtapoints.com">wtapoints.com</a></p>
-    </div>
-  </div>
 
   <script src="app.js?v=6"></script>
 </body>
