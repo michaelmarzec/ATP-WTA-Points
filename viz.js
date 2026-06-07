@@ -7,7 +7,7 @@
   if (switchBar) {
     const activeLabel = isWta ? "WTA" : "ATP";
     const sisterLabel = isWta ? "ATP" : "WTA";
-    const sisterHref  = isWta ? "https://www.atppoints.com" : "https://www.wtapoints.com";
+    const sisterHref  = isWta ? "https://atppoints.com" : "https://wtapoints.com";
     switchBar.innerHTML = `<span class="tour-label">${activeLabel}</span><a href="${sisterHref}">${sisterLabel}</a>`;
   }
 
