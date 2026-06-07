@@ -6,12 +6,14 @@
   <title>ATP Rankings Points Tracker</title>
   <link rel="stylesheet" href="style.css?v=6" />
   <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-VNQ86Y655V"></script>
   <script>
+    var _gaId = (location.hostname === 'wtapoints.com' || location.hostname === 'www.wtapoints.com')
+      ? 'G-VNQ86Y655V' : 'G-6H1E0G2CNZ';
+    document.write('<script async src="https://www.googletagmanager.com/gtag/js?id=' + _gaId + '"><\/script>');
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
-    gtag('config', 'G-VNQ86Y655V');
+    gtag('config', _gaId);
   </script>
 </head>
 <body>
