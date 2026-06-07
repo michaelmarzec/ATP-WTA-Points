@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ATP Points — Visualize</title>
   <link rel="stylesheet" href="style.css?v=2" />
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-VNQ86Y655V"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-VNQ86Y655V');
+  </script>
   <link rel="stylesheet" href="viz.css?v=2" />
 </head>
 <body>
@@ -97,6 +105,36 @@
   </div>
 
   <div id="viz-tooltip" class="viz-tooltip" hidden></div>
+
+  <footer>
+    <span>Data via <a href="https://github.com/JeffSackmann" target="_blank" rel="noopener">Jeff Sackmann</a></span>
+    <span class="footer-sep">·</span>
+    <button class="footer-link" id="btn-about">About</button>
+    <span class="footer-sep">·</span>
+    <button class="footer-link" id="btn-privacy">Privacy</button>
+  </footer>
+
+  <!-- About modal -->
+  <div class="modal-backdrop" id="modal-about" hidden>
+    <div class="modal">
+      <button class="modal-close" data-close="modal-about">✕</button>
+      <h2>About</h2>
+      <p>ATP Rankings Points Tracker breaks down each player's ranking points by tournament, so you can see exactly where their points come from and how filters like surface or date range affect their standing.</p>
+      <p>Point totals are sourced from the official ATP rankings. Tournament-level breakdowns are calculated from match results in <a href="https://github.com/JeffSackmann/tennis_atp" target="_blank" rel="noopener">Jeff Sackmann's tennis_atp dataset</a>, updated daily.</p>
+      <p>Sister site: <a href="https://wtapoints.com">wtapoints.com</a></p>
+    </div>
+  </div>
+
+  <!-- Privacy modal -->
+  <div class="modal-backdrop" id="modal-privacy" hidden>
+    <div class="modal">
+      <button class="modal-close" data-close="modal-privacy">✕</button>
+      <h2>Privacy</h2>
+      <p>This site uses Google Analytics to collect anonymous usage data (pages visited, general location, device type). No personal information is collected or sold.</p>
+      <p>Favorite players are stored locally in your browser and never sent to any server.</p>
+      <p>This site has no ads, no accounts, and no tracking beyond basic analytics.</p>
+    </div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
