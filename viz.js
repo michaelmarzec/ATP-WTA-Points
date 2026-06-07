@@ -1,10 +1,20 @@
 (async () => {
   const $ = id => document.getElementById(id);
 
+  // ── Site switch pill ───────────────────────────────────────────────────────
+  const isWta = location.hostname === "wtapoints.com" || location.hostname === "www.wtapoints.com";
+  const switchBar = document.querySelector(".site-switch-bar");
+  if (switchBar) {
+    const activeLabel = isWta ? "WTA" : "ATP";
+    const sisterLabel = isWta ? "ATP" : "WTA";
+    const sisterHref  = isWta ? "https://www.atppoints.com" : "https://www.wtapoints.com";
+    switchBar.innerHTML = `<span class="tour-label">${activeLabel}</span><a href="${sisterHref}">${sisterLabel}</a>`;
+  }
+
   // ── Load data ──────────────────────────────────────────────────────────────
   let data;
   try {
-    const tour = location.hostname === "wtapoints.com" || location.hostname === "www.wtapoints.com" ? "wta" : "atp";
+    const tour = isWta ? "wta" : "atp";
     const resp = await fetch(`data/${tour}/rankings.json`);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     data = await resp.json();
