@@ -439,7 +439,7 @@
   // ══════════════════════════════════════════════════════════════════════════
   // 3. BUMP CHART — multi-select player list, crosshair + tourney tooltip
   // ══════════════════════════════════════════════════════════════════════════
-  const bumpPlayers = data.players.slice(0,5).map((p,i) => ({ id:p.id, name:p.name, color:PLAYER_PAL[i] }));
+  const bumpPlayers = data.players.slice(0,15).map((p,i) => ({ id:p.id, name:p.name, color:PLAYER_PAL[i % PLAYER_PAL.length] }));
 
   buildPickerList("bump-list", "bump-search", true, (p, selected) => {
     if (selected) {
