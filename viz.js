@@ -19,8 +19,10 @@
     document.querySelectorAll("[data-val='500']").forEach(b => b.textContent = "WTA 500");
     document.querySelectorAll("[data-val='250']").forEach(b => b.textContent = "WTA 250");
   } else {
-    // Hide WTA-only chip on ATP site
+    // Hide WTA-only chip on ATP site; update 500/250 labels
     document.getElementById("viz-chip-1000")?.remove();
+    document.querySelectorAll("[data-val='500']").forEach(b => b.textContent = "ATP 500");
+    document.querySelectorAll("[data-val='250']").forEach(b => b.textContent = "ATP 250");
   }
 
   // ── Load data ──────────────────────────────────────────────────────────────
@@ -613,7 +615,7 @@
 
   // Build legend (static)
   const hmLegend = $("heatmap-legend");
-  ["G","M","500","250","F"].forEach(cat => {
+  (isWta ? ["G","1000","500","250","F"] : ["G","M","500","250","F"]).forEach(cat => {
     const item = document.createElement("div");
     item.className = "heatmap-legend-item";
     item.innerHTML = `<div class="heatmap-legend-swatch" style="background:${CAT_COLORS[cat]}"></div>${CAT_LABELS[cat]}`;
