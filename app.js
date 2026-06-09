@@ -16,6 +16,26 @@
     document.getElementById("favicon").href = "favicon-wta-32.png";
   }
 
+  // ── Build level chips dynamically based on tour ────────────────────────────
+  const CHIP_LABELS = {
+    G: "Grand Slam",
+    M: "Masters 1000",
+    "1000": "WTA 1000",
+    "500": isWta ? "WTA 500" : "ATP 500",
+    "250": isWta ? "WTA 250" : "ATP 250",
+    F: "Finals",
+  };
+  const levelChips = document.getElementById("level-chips");
+  if (levelChips) {
+    ALL_LEVELS.forEach(lvl => {
+      const btn = document.createElement("button");
+      btn.className = "chip active";
+      btn.dataset.level = lvl;
+      btn.textContent = CHIP_LABELS[lvl] || lvl;
+      levelChips.appendChild(btn);
+    });
+  }
+
   // ── Load data ──────────────────────────────────────────────────────────────
   let data;
   try {
@@ -38,7 +58,7 @@
 
   // ── State ──────────────────────────────────────────────────────────────────
   const ALL_SURFACES = ["Hard", "Clay", "Grass"];
-  const ALL_LEVELS   = ["G", "M", "500", "250", "F"];
+  const ALL_LEVELS   = isWta ? ["G", "1000", "500", "250", "F"] : ["G", "M", "500", "250", "F"];
 
   const state = {
     selectedPlayers: new Set(),   // player ids
@@ -568,10 +588,11 @@
   }
 
   function tierClass(category) {
-    if (category === "G")   return "tier-gs";
-    if (category === "M")   return "tier-m";
-    if (category === "500") return "tier-500";
-    if (category === "F")   return "tier-f";
+    if (category === "G")      return "tier-gs";
+    if (category === "M")      return "tier-m";
+    if (category === "1000")   return "tier-m";
+    if (category === "500")    return "tier-500";
+    if (category === "F")      return "tier-f";
     return "tier-250";
   }
 
