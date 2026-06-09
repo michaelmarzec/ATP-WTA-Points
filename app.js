@@ -17,6 +17,7 @@
   }
 
   // ── Build level chips dynamically based on tour ────────────────────────────
+  const ALL_LEVELS_TOUR = isWta ? ["G", "1000", "500", "250", "F"] : ["G", "M", "500", "250", "F"];
   const CHIP_LABELS = {
     G: "Grand Slam",
     M: "Masters 1000",
@@ -27,7 +28,7 @@
   };
   const levelChips = document.getElementById("level-chips");
   if (levelChips) {
-    ALL_LEVELS.forEach(lvl => {
+    ALL_LEVELS_TOUR.forEach(lvl => {
       const btn = document.createElement("button");
       btn.className = "chip active";
       btn.dataset.level = lvl;
@@ -58,7 +59,7 @@
 
   // ── State ──────────────────────────────────────────────────────────────────
   const ALL_SURFACES = ["Hard", "Clay", "Grass"];
-  const ALL_LEVELS   = isWta ? ["G", "1000", "500", "250", "F"] : ["G", "M", "500", "250", "F"];
+  const ALL_LEVELS   = ALL_LEVELS_TOUR;
 
   const state = {
     selectedPlayers: new Set(),   // player ids

@@ -109,7 +109,7 @@
   let stackedChart = null;
   let stackedMode = "level"; // "level" | "surface"
   const stackedSurfaces = new Set(["Hard","Clay","Grass"]);
-  const stackedLevels   = new Set(["G","M","500","250","F"]);
+  const stackedLevels   = new Set(["G","M","1000","500","250","F"]);
 
   // Mode toggle (mutually exclusive)
   document.querySelectorAll("#stacked-mode [data-val]").forEach(btn => {
@@ -135,7 +135,7 @@
 
     // Group keys in display order
     const groupOrder = isLevel
-      ? ["G","M","500","250","F"].filter(g => stackedLevels.has(g))
+      ? ["G","M","1000","500","250","F"].filter(g => stackedLevels.has(g))
       : ["Hard","Clay","Grass"].filter(g => stackedSurfaces.has(g));
 
     // Per-player totals for sorting
@@ -310,7 +310,7 @@
 
     const svg = d3.select(wrap).append("svg").attr("width", W).attr("height", H);
 
-    const LEVEL_ORDER = ["G", "M", "F", "500", "250"];
+    const LEVEL_ORDER = ["G", "M", "1000", "F", "500", "250"];
     const sk = d3.sankey()
       .nodeWidth(14).nodePadding(5)
       .nodeSort((a, b) => {
