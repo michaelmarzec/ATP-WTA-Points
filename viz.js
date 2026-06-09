@@ -14,6 +14,13 @@
     document.querySelector("h1").textContent = "WTA Points — Visualize";
     document.title = "WTA Points — Visualize";
     document.getElementById("favicon").href = "favicon-wta-32.png";
+    // Hide ATP-only chip, show WTA-only chip; update 500/250 labels
+    document.getElementById("viz-chip-M")?.remove();
+    document.querySelectorAll("[data-val='500']").forEach(b => b.textContent = "WTA 500");
+    document.querySelectorAll("[data-val='250']").forEach(b => b.textContent = "WTA 250");
+  } else {
+    // Hide WTA-only chip on ATP site
+    document.getElementById("viz-chip-1000")?.remove();
   }
 
   // ── Load data ──────────────────────────────────────────────────────────────
@@ -35,8 +42,10 @@
     `Rankings as of ${fmtDate(data.rankingsDate)} · ${data.players.length} players · ${data.tournaments.length} tournaments`;
 
   // ── Constants ──────────────────────────────────────────────────────────────
-  const CAT_COLORS  = { G:"#fbbf24", M:"#34d399", "500":"#60a5fa", "250":"#a78bfa", F:"#f472b6" };
-  const CAT_LABELS  = { G:"Grand Slam", M:"Masters", "500":"ATP 500", "250":"ATP 250", F:"Finals" };
+  const CAT_COLORS  = { G:"#fbbf24", M:"#34d399", "1000":"#34d399", "500":"#60a5fa", "250":"#a78bfa", F:"#f472b6" };
+  const CAT_LABELS  = isWta
+    ? { G:"Grand Slam", "1000":"WTA 1000", "500":"WTA 500", "250":"WTA 250", F:"Finals" }
+    : { G:"Grand Slam", M:"Masters",       "500":"ATP 500", "250":"ATP 250", F:"Finals" };
   const SURF_COLORS = { Hard:"#60a5fa", Clay:"#f97316", Grass:"#34d399" };
   const PLAYER_PAL  = ["#60a5fa","#f472b6","#34d399","#fbbf24","#a78bfa","#fb923c","#2dd4bf","#f87171","#a3e635","#e879f9"];
 
@@ -109,7 +118,7 @@
   let stackedChart = null;
   let stackedMode = "level"; // "level" | "surface"
   const stackedSurfaces = new Set(["Hard","Clay","Grass"]);
-  const stackedLevels   = new Set(["G","M","1000","500","250","F"]);
+  const stackedLevels   = new Set(isWta ? ["G","1000","500","250","F"] : ["G","M","500","250","F"]);
 
   // Mode toggle (mutually exclusive)
   document.querySelectorAll("#stacked-mode [data-val]").forEach(btn => {
@@ -135,7 +144,7 @@
 
     // Group keys in display order
     const groupOrder = isLevel
-      ? ["G","M","1000","500","250","F"].filter(g => stackedLevels.has(g))
+      ? (isWta ? ["G","1000","500","250","F"] : ["G","M","500","250","F"]).filter(g => stackedLevels.has(g))
       : ["Hard","Clay","Grass"].filter(g => stackedSurfaces.has(g));
 
     // Per-player totals for sorting
