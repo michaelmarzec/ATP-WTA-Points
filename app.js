@@ -13,6 +13,7 @@
   if (isWta) {
     document.querySelector("h1").textContent = "WTA Rankings Points Tracker";
     document.title = "WTA Rankings Points Tracker";
+    document.getElementById("favicon").href = "favicon-wta-32.png";
   }
 
   // ── Load data ──────────────────────────────────────────────────────────────

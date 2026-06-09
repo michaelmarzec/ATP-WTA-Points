@@ -13,6 +13,7 @@
   if (isWta) {
     document.querySelector("h1").textContent = "WTA Points — Visualize";
     document.title = "WTA Points — Visualize";
+    document.getElementById("favicon").href = "favicon-wta-32.png";
   }
 
   // ── Load data ──────────────────────────────────────────────────────────────
