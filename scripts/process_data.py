@@ -115,7 +115,8 @@ def main():
 
     # 1b. Build weekly ranking snapshots for top 50 (for bump chart)
     # Pull from decade file for historical weeks + current file already loaded
-    cutoff_wk = cutoff_date()
+    # Use 52-week window (1 year) to match ATP ranking points expiry
+    cutoff_wk = int((date.today() - timedelta(weeks=52)).strftime("%Y%m%d"))
     weekly = {}
 
     def ingest_ranking_rows(ranking_rows):
