@@ -451,7 +451,58 @@
   // ══════════════════════════════════════════════════════════════════════════
   // 3. BUMP CHART — multi-select player list, crosshair + tourney tooltip
   // ══════════════════════════════════════════════════════════════════════════
-  const bumpPlayers = data.players.slice(0,15).map((p,i) => ({ id:p.id, name:p.name, color:PLAYER_PAL[i % PLAYER_PAL.length] }));
+  let bumpMode = "top";
+  const bumpPlayers = [];
+
+  function computeBumpDefault(mode) {
+    const weeks = data.weeklyRankings;
+    if (!weeks?.length) return data.players.slice(0, 15);
+    if (mode === "top") return data.players.slice(0, 15);
+
+    // Find earliest week ~52 weeks back from last week
+    const lastWeek = weeks[weeks.length - 1];
+    const lastDate = lastWeek.date;
+    const oneYearAgo = String(parseInt(lastDate.slice(0,4)) - 1) + lastDate.slice(4);
+    const earlyWeek = weeks.find(w => w.date >= oneYearAgo) ?? weeks[0];
+
+    const earlyMap = new Map(earlyWeek.rankings.map(r => [r.id, r.rank]));
+    const lastMap  = new Map(lastWeek.rankings.map(r => [r.id, r.rank]));
+
+    const deltas = [];
+    for (const [id, currentRank] of lastMap) {
+      const oldRank = earlyMap.get(id);
+      if (oldRank == null) continue;
+      deltas.push({ id, delta: oldRank - currentRank }); // positive = moved up
+    }
+
+    const minDelta = 2;
+    const sorted = mode === "risers"
+      ? deltas.filter(d => d.delta >= minDelta).sort((a,b) => b.delta - a.delta)
+      : deltas.filter(d => d.delta <= -minDelta).sort((a,b) => a.delta - b.delta);
+
+    return sorted.slice(0, 15).map(d => data.players.find(p => p.id === d.id)).filter(Boolean);
+  }
+
+  function applyBumpMode(mode) {
+    bumpMode = mode;
+    bumpPlayers.length = 0;
+    computeBumpDefault(mode).forEach((p, i) => {
+      bumpPlayers.push({ id: p.id, name: p.name, color: PLAYER_PAL[i % PLAYER_PAL.length] });
+    });
+    renderBumpTags();
+    refreshPickerSelection("bump-list");
+    drawBump();
+  }
+
+  document.querySelectorAll("#bump-mode [data-val]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#bump-mode [data-val]").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      applyBumpMode(btn.dataset.val);
+    });
+  });
+
+  applyBumpMode("top");
 
   buildPickerList("bump-list", "bump-search", true, (p, selected) => {
     if (selected) {
@@ -466,10 +517,7 @@
   }, () => new Set(bumpPlayers.map(p => p.id)));
 
   $("bump-clear").addEventListener("click", () => {
-    bumpPlayers.length = 0;
-    renderBumpTags();
-    refreshPickerSelection("bump-list");
-    drawBump();
+    applyBumpMode(bumpMode);
   });
 
   function renderBumpTags() {
@@ -584,19 +632,24 @@
         crossLine.attr("x1",x(best)).attr("x2",x(best)).attr("opacity",1);
 
         const weekTourneys = tourneysLastWeek(best);
-        const rankRows = series.map(s => {
-          const pt = s.points.find(p=>p.date===best);
-          if (!pt) return "";
-          // Sum points across all last-week tourneys for this player
-          const ptsThisWeek = weekTourneys.reduce((sum, t) => {
-            const ti = data.tournaments.indexOf(t);
-            return sum + (data.players.find(p=>p.id===s.id)?.tourneyPoints[String(ti)] ?? 0);
-          }, 0);
-          const ptsStr = ptsThisWeek > 0
-            ? ` <span style="color:#64748b;font-size:10px">(${ptsThisWeek.toLocaleString()} pts)</span>`
-            : "";
-          return `<div class="tt-row"><span class="tt-label" style="color:${s.color}">${s.name.split(" ").pop()}</span><span class="tt-val">#${pt.rank}${ptsStr}</span></div>`;
-        }).join("");
+        const rankRows = series
+          .map(s => {
+            const pt = s.points.find(p=>p.date===best);
+            if (!pt) return null;
+            const ptsThisWeek = weekTourneys.reduce((sum, t) => {
+              const ti = data.tournaments.indexOf(t);
+              return sum + (data.players.find(p=>p.id===s.id)?.tourneyPoints[String(ti)] ?? 0);
+            }, 0);
+            return { s, pt, ptsThisWeek };
+          })
+          .filter(Boolean)
+          .sort((a, b) => a.pt.rank - b.pt.rank)
+          .map(({ s, pt, ptsThisWeek }) => {
+            const ptsStr = ptsThisWeek > 0
+              ? ` <span style="color:#64748b;font-size:10px">(${ptsThisWeek.toLocaleString()} pts)</span>`
+              : "";
+            return `<div class="tt-row"><span class="tt-label" style="color:${s.color}">${s.name.split(" ").pop()}</span><span class="tt-val">#${pt.rank}${ptsStr}</span></div>`;
+          }).join("");
 
         const tourneySection = weekTourneys.length
           ? `<hr class="tt-divider"><div class="tt-row" style="font-size:10px;color:#475569;margin-bottom:2px">Last week's tourneys</div>`

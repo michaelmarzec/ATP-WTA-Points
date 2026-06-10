@@ -89,6 +89,11 @@
     <!-- Bump Chart -->
     <div id="tab-bump" class="tab-panel" hidden>
       <div class="viz-controls" style="align-items:center;flex-wrap:wrap;gap:8px;">
+        <div class="chip-group" id="bump-mode">
+          <button class="chip active" data-val="top">Top Ranked</button>
+          <button class="chip" data-val="risers">Biggest Risers</button>
+          <button class="chip" data-val="fallers">Biggest Fallers</button>
+        </div>
         <div class="player-picker-wrap">
           <input id="bump-search" type="text" placeholder="Add players…" autocomplete="off" class="picker-search" />
           <div id="bump-list" class="player-picker-list"></div>
