@@ -99,7 +99,7 @@ def main():
                 rk = int(r["rank"])
             except ValueError:
                 continue
-            if rk > 50:
+            if rk > 500:
                 continue
             if d not in weekly:
                 weekly[d] = []
