@@ -563,17 +563,22 @@
     const W = Math.max(700, allDates.length * 18 + mL + mR);
     const H = 440;
 
+    // Dynamic y domain based on actual ranks in view
+    const allRanks = series.flatMap(s => s.points.map(p => p.rank));
+    const maxRank = Math.max(50, ...allRanks);
+    const yTicks = [1,5,10,20,30,40,50,75,100,150,200,300,400,500].filter(t => t <= maxRank + 10);
+
     const svg = d3.select(wrap).append("svg").attr("width", W).attr("height", H);
     const x = d3.scalePoint().domain(allDates).range([mL, W - mR]).padding(0.2);
-    const y = d3.scaleLinear().domain([1,50]).range([mT, H - mB]);
+    const y = d3.scaleLinear().domain([1, maxRank]).range([mT, H - mB]);
 
     // Gridlines
-    svg.selectAll(".hg").data([1,5,10,20,30,40,50]).join("line")
+    svg.selectAll(".hg").data(yTicks).join("line")
       .attr("x1",mL).attr("x2",W-mR).attr("y1",d=>y(d)).attr("y2",d=>y(d))
       .attr("stroke","#1a2030").attr("stroke-width",1);
 
     // Y axis
-    svg.selectAll(".yl").data([1,5,10,20,30,40,50]).join("text")
+    svg.selectAll(".yl").data(yTicks).join("text")
       .attr("x",mL-6).attr("y",d=>y(d)+4).attr("text-anchor","end")
       .attr("fill","#475569").attr("font-size",10).text(d=>`#${d}`);
 
