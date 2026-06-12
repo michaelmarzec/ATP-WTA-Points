@@ -506,7 +506,7 @@
 
   buildPickerList("bump-list", "bump-search", true, (p, selected) => {
     if (selected) {
-      if (bumpPlayers.length >= 10) return;
+      if (bumpPlayers.length >= 20) return;
       bumpPlayers.push({ id:p.id, name:p.name, color:PLAYER_PAL[bumpPlayers.length % PLAYER_PAL.length] });
     } else {
       const idx = bumpPlayers.findIndex(x => x.id === p.id);
