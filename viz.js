@@ -517,7 +517,10 @@
   }, () => new Set(bumpPlayers.map(p => p.id)));
 
   $("bump-clear").addEventListener("click", () => {
-    applyBumpMode(bumpMode);
+    bumpPlayers.length = 0;
+    renderBumpTags();
+    refreshPickerSelection("bump-list");
+    drawBump();
   });
 
   function renderBumpTags() {
