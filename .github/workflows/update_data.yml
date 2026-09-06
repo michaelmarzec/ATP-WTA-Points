@@ -1,9 +1,10 @@
 name: Update ATP Rankings Data
 
+# DISABLED: pipeline reads local tennisdata.app season CSVs that this workflow
+# cannot refresh. Re-enable the schedule once CSV extraction is automated.
 on:
-  schedule:
-    # Daily at 06:00 UTC (Sackmann typically updates overnight)
-    - cron: "0 6 * * *"
+  # schedule:
+  #   - cron: "0 6 * * *"
   workflow_dispatch: # allow manual trigger
 
 jobs:

@@ -1,9 +1,10 @@
 name: Update WTA Rankings Data
 
+# DISABLED: pipeline reads local tennisdata.app season CSVs that this workflow
+# cannot refresh. Re-enable the schedule once CSV extraction is automated.
 on:
-  schedule:
-    # Daily at 06:30 UTC (offset from ATP job to avoid overlap)
-    - cron: "30 6 * * *"
+  # schedule:
+  #   - cron: "30 6 * * *"
   workflow_dispatch:
 
 jobs:

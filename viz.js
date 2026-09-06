@@ -156,7 +156,7 @@
       return { ...p, total };
     }).sort((a,b) => b.total - a.total).slice(0, n);
 
-    const labels = playerTotals.map(p => p.name.split(" ").pop());
+    const labels = playerTotals.map(p => playerLastName(p.name));
 
     // One dataset per tournament, ordered by group then date
     const datasets = [];
@@ -530,7 +530,7 @@
       const tag = document.createElement("div");
       tag.className = "bump-tag";
       tag.style.cssText = `border-color:${p.color};color:${p.color};background:${p.color}22`;
-      tag.textContent = p.name.split(" ").pop();
+      tag.textContent = playerLastName(p.name);
       const rm = document.createElement("button");
       rm.textContent = "×";
       rm.addEventListener("click", () => {
@@ -604,7 +604,7 @@
         svg.append("text")
           .attr("x",x(last.date)+10).attr("y",y(last.rank)+4)
           .attr("fill",s.color).attr("font-size",11).attr("font-weight",600)
-          .text(s.name.split(" ").pop());
+          .text(playerLastName(s.name));
       }
     });
 
@@ -656,7 +656,7 @@
             const ptsStr = ptsThisWeek > 0
               ? ` <span style="color:#64748b;font-size:10px">(${ptsThisWeek.toLocaleString()} pts)</span>`
               : "";
-            return `<div class="tt-row"><span class="tt-label" style="color:${s.color}">${s.name.split(" ").pop()}</span><span class="tt-val">#${pt.rank}${ptsStr}</span></div>`;
+            return `<div class="tt-row"><span class="tt-label" style="color:${s.color}">${playerLastName(s.name)}</span><span class="tt-val">#${pt.rank}${ptsStr}</span></div>`;
           }).join("");
 
         const tourneySection = weekTourneys.length
@@ -866,6 +866,14 @@
   function fmtMonthShort(d) {
     const M=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     return `${M[parseInt(d.slice(4,6),10)-1]} '${d.slice(2,4)}`;
+  }
+  /** Surname token for chart labels — skips leading initials like "J." / "A." */
+  function playerLastName(name) {
+    const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return "";
+    let i = 0;
+    while (i < parts.length - 1 && /^[A-Za-z]\.?$/.test(parts[i])) i++;
+    return parts[parts.length - 1];
   }
   function shortName(name) {
     const s = name.replace("ATP","").replace("Masters","M.").replace("Open","")

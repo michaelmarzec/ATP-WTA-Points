@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 """
-Parses tennisdata.app ATP season CSV(s) and outputs data/atp/rankings.json.
+Transforms tennisdata.app ATP season CSV(s) → data/atp/rankings.json.
 
-Replaces the old Jeff Sackmann tennis_atp pipeline (that source went stale/
-unavailable in mid-2026). Reads local CSV file(s) named "<year>-atp-season.csv"
-sitting in the repo root — refreshed manually or by whatever automation we
-land on — rather than fetching from a URL.
+Reads local "<year>-atp-season.csv" files in the repo root (CSVs are never
+modified). Output matches the contract the table/viz frontend already expects:
+full-ish display names, Title-Case surfaces, dense weekly snapshots for bump.
 """
 
 import csv
 import glob
 import json
+import sys
 from collections import defaultdict
 from datetime import date, datetime, timedelta
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from transform_utils import build_weekly_rankings, display_name as format_player_name, title_surface
 
 # ---------- ATP points schedule (unchanged from the Sackmann-based script) ----------
 # "RR" (round-robin, used only by the season-ending Finals) sits at the bottom:
@@ -295,48 +299,17 @@ def main():
     print(f"  Rankings as-of latest finished match: {rankings_date}. Top 500 loaded.")
 
     # ---------- Weekly ranking snapshots for bump chart ----------
-    # tennisdata.app has no dedicated weekly ranking-list file; approximate by taking
-    # each player's rank as of their most recent match on/before each week, forward-filled.
-    finished_sorted = sorted(
-        (r for r in tour_rows if r.get("status") == "FINISHED"),
-        key=lambda r: int(r.get("date_timestamp", "0")),
-    )
-    # Build per-player timeline of (timestamp, rank, points)
-    timelines = defaultdict(list)
-    for r in finished_sorted:
-        ts = int(r.get("date_timestamp", "0"))
-        for side in ("home", "away"):
-            pid = r.get(f"{side}_id", "")
-            rank = r.get(f"{side}_rank")
-            pts = r.get(f"{side}_points")
-            if pid and rank:
-                try:
-                    timelines[pid].append((ts, int(rank), int(pts) if pts else 0))
-                except ValueError:
-                    continue
-
-    weekly = {}
-    if finished_sorted:
-        start_ts = int(finished_sorted[0].get("date_timestamp", "0"))
-        end_ts = latest_ts or start_ts
-        week_secs = 7 * 24 * 3600
-        cursor = start_ts
-        while cursor <= end_ts:
-            wk_date = date.fromtimestamp(cursor).strftime("%Y%m%d")
-            snapshot = []
-            for pid, points_list in timelines.items():
-                past = [p for p in points_list if p[0] <= cursor]
-                if not past:
-                    continue
-                _, rank, pts = past[-1]
-                if rank <= 500:
-                    snapshot.append({"id": pid, "rank": rank, "points": pts})
-            if snapshot:
-                weekly[wk_date] = snapshot
-            cursor += week_secs
-
-    weekly_list = [{"date": d, "rankings": weekly[d]} for d in sorted(weekly)]
-    print(f"  {len(weekly_list)} weekly snapshots for bump chart (forward-filled from match results).")
+    # Seed timelines from ALL ATP Tour rows so early weeks in the 52-week window
+    # are already dense (match embeds only update when a player plays).
+    weekly_list = build_weekly_rankings(all_atp_rows, cutoff_ts, latest_ts)
+    sizes = [len(w["rankings"]) for w in weekly_list]
+    if sizes:
+        print(
+            f"  {len(weekly_list)} weekly snapshots for bump chart "
+            f"(size min/med/max={min(sizes)}/{sorted(sizes)[len(sizes)//2]}/{max(sizes)})."
+        )
+    else:
+        print("  Warning: no weekly snapshots built.")
 
     # ---------- Tournament / points-by-tournament ----------
     print("\n[2] Building tournament results...")
@@ -376,7 +349,7 @@ def main():
                 "end_ts": ts,        # latest match date — used for the cutoff decision below
                 "category": cat,
                 "small_draw": small_draw,
-                "surface": r.get("surface", "").capitalize(),
+                "surface": title_surface(r.get("surface", "")),
                 "winner": "",
                 "matches": [],
             }
@@ -403,7 +376,7 @@ def main():
             continue  # no clear result (e.g. retired before completion with no winner_code)
 
         if rnd == "F":
-            tourneys[key]["winner"] = winner_name
+            tourneys[key]["winner"] = format_player_name(winner_name)
         is_playoff = is_united_cup_playoffs(raw_name)
         tourneys[key]["matches"].append((rnd, winner_id, loser_id, loser_rank, ts, is_playoff))
 
@@ -629,36 +602,22 @@ def main():
     }
 
     # ---------- Assemble output ----------
-    # "points" and "rank" are derived from OUR OWN in-window tournament replay
-    # (sum of tourneyPoints) rather than tennisdata.app's embedded home_points/
-    # home_rank snapshot. That embedded field is frozen as of each player's most
-    # recent match date — so for anyone who hasn't played in a while (an off
-    # week, an injury layoff), it overstates their true current total: real ATP
-    # points keep decaying as older tournaments age out of the 52-week window
-    # even while a player isn't adding new ones. Computing points from our own
-    # breakdown keeps the two numbers permanently consistent and reflects
-    # today's actual total, not a stale snapshot from whenever they last played.
-    #
-    # Trade-off: this only counts ATP Tour-level events (the only level this
-    # pipeline tracks), so a player who also earns points at Challenger-level
-    # events will show a lower total here than their real official ranking
-    # points. That mostly affects players outside the top ~150.
+    # Keep official embedded rank order (matches the old Sackmann contract the
+    # UI was built around). "points" is the sum of our counted tourneyPoints so
+    # the table total matches chart breakdowns. Challenger-only points are not
+    # in the CSVs we score, so lower-ranked players may sit under official ATP.com.
     print("\n[3] Assembling output...")
-    membership = [(pid, name) for pid, _, name, _, _ in ranked_players[:500]]
-    scored = [
-        (pid, name, sum(player_results.get(pid, {}).values()))
-        for pid, name in membership
-    ]
-    scored.sort(key=lambda x: x[2], reverse=True)
-
     players_out = []
-    for rank, (pid, name, points) in enumerate(scored, start=1):
+    for pid, _ts, name, rank, _official_pts in top500:
+        tourney_pts = player_results.get(pid, {})
+        # JSON object keys must be strings for the frontend's String(index) lookups
+        tourney_pts_out = {str(idx): pts for idx, pts in tourney_pts.items()}
         players_out.append({
             "id": pid,
-            "name": name,
+            "name": format_player_name(name),
             "rank": rank,
-            "points": points,
-            "tourneyPoints": player_results.get(pid, {}),
+            "points": sum(tourney_pts.values()),
+            "tourneyPoints": tourney_pts_out,
         })
 
     output = {

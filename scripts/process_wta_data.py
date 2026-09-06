@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 """
-Parses tennisdata.app WTA season CSV(s) and outputs data/wta/rankings.json.
+Transforms tennisdata.app WTA season CSV(s) → data/wta/rankings.json.
 
-Mirrors process_data.py's approach — see that file for the fuller comments.
-Replaces the old Jeff Sackmann tennis_wta pipeline.
+Mirrors process_data.py. CSVs are never modified; output matches the frontend
+contract (display names, surfaces, dense weekly bump snapshots).
 """
 
 import csv
 import glob
 import json
+import sys
 from collections import defaultdict
 from datetime import date, datetime, timedelta
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from transform_utils import build_weekly_rankings, display_name as format_player_name, title_surface
 
 # "RR" (round-robin, used only by the season-ending WTA Finals) sits at the
 # bottom: it must outrank the "-1" not-yet-reached sentinel so an RR-only
@@ -240,45 +245,15 @@ def main():
 
     print(f"  Rankings as-of latest finished match: {rankings_date}. Top 500 loaded.")
 
-    finished_sorted = sorted(
-        (r for r in tour_rows if r.get("status") == "FINISHED"),
-        key=lambda r: int(r.get("date_timestamp", "0")),
-    )
-    timelines = defaultdict(list)
-    for r in finished_sorted:
-        ts = int(r.get("date_timestamp", "0"))
-        for side in ("home", "away"):
-            pid = r.get(f"{side}_id", "")
-            rank = r.get(f"{side}_rank")
-            pts = r.get(f"{side}_points")
-            if pid and rank:
-                try:
-                    timelines[pid].append((ts, int(rank), int(pts) if pts else 0))
-                except ValueError:
-                    continue
-
-    weekly = {}
-    if finished_sorted:
-        start_ts = int(finished_sorted[0].get("date_timestamp", "0"))
-        end_ts = latest_ts or start_ts
-        week_secs = 7 * 24 * 3600
-        cursor = start_ts
-        while cursor <= end_ts:
-            wk_date = date.fromtimestamp(cursor).strftime("%Y%m%d")
-            snapshot = []
-            for pid, points_list in timelines.items():
-                past = [p for p in points_list if p[0] <= cursor]
-                if not past:
-                    continue
-                _, rank, pts = past[-1]
-                if rank <= 500:
-                    snapshot.append({"id": pid, "rank": rank, "points": pts})
-            if snapshot:
-                weekly[wk_date] = snapshot
-            cursor += week_secs
-
-    weekly_list = [{"date": d, "rankings": weekly[d]} for d in sorted(weekly)]
-    print(f"  {len(weekly_list)} weekly snapshots for bump chart (forward-filled from match results).")
+    weekly_list = build_weekly_rankings(all_wta_rows, cutoff_ts, latest_ts)
+    sizes = [len(w["rankings"]) for w in weekly_list]
+    if sizes:
+        print(
+            f"  {len(weekly_list)} weekly snapshots for bump chart "
+            f"(size min/med/max={min(sizes)}/{sorted(sizes)[len(sizes)//2]}/{max(sizes)})."
+        )
+    else:
+        print("  Warning: no weekly snapshots built.")
 
     print("\n[2] Building tournament results...")
     tourneys = {}
@@ -312,7 +287,7 @@ def main():
                 "date_ts": ts,
                 "end_ts": ts,
                 "category": cat,
-                "surface": r.get("surface", "").capitalize(),
+                "surface": title_surface(r.get("surface", "")),
                 "winner": "",
                 "matches": [],
             }
@@ -339,7 +314,7 @@ def main():
             continue
 
         if rnd == "F":
-            tourneys[key]["winner"] = winner_name
+            tourneys[key]["winner"] = format_player_name(winner_name)
         is_playoff = is_united_cup_playoffs(raw_name)
         tourneys[key]["matches"].append((rnd, winner_id, loser_id, loser_rank, ts, is_playoff))
 
@@ -483,30 +458,17 @@ def main():
         for pid, pts_by_idx in player_results.items()
     }
 
-    # "points" and "rank" are derived from OUR OWN in-window tournament replay
-    # (sum of tourneyPoints) rather than tennisdata.app's embedded home_points/
-    # home_rank snapshot — see process_data.py for the full rationale. Short
-    # version: the embedded field is frozen as of each player's most recent
-    # match date, so it overstates anyone who's had a layoff since points keep
-    # decaying whether or not a player is adding new ones. This only counts
-    # WTA Tour-level events, so it will under-state totals for players who also
-    # earn points at ITF-level events (mostly players outside the top ~150).
     print("\n[3] Assembling output...")
-    membership = [(pid, name) for pid, _, name, _, _ in ranked_players[:500]]
-    scored = [
-        (pid, name, sum(player_results.get(pid, {}).values()))
-        for pid, name in membership
-    ]
-    scored.sort(key=lambda x: x[2], reverse=True)
-
     players_out = []
-    for rank, (pid, name, points) in enumerate(scored, start=1):
+    for pid, _ts, name, rank, _official_pts in top500:
+        tourney_pts = player_results.get(pid, {})
+        tourney_pts_out = {str(idx): pts for idx, pts in tourney_pts.items()}
         players_out.append({
             "id": pid,
-            "name": name,
+            "name": format_player_name(name),
             "rank": rank,
-            "points": points,
-            "tourneyPoints": player_results.get(pid, {}),
+            "points": sum(tourney_pts.values()),
+            "tourneyPoints": tourney_pts_out,
         })
 
     output = {
