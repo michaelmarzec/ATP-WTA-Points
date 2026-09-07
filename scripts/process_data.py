@@ -602,22 +602,25 @@ def main():
     }
 
     # ---------- Assemble output ----------
-    # Keep official embedded rank order (matches the old Sackmann contract the
-    # UI was built around). "points" is the sum of our counted tourneyPoints so
-    # the table total matches chart breakdowns. Challenger-only points are not
-    # in the CSVs we score, so lower-ranked players may sit under official ATP.com.
+    # Rank and sort by OUR counted points (sum of tourneyPoints), not tennisdata
+    # embedded home_rank. Those embeds are frozen as of each player's last match
+    # and routinely disagree with the breakdown total we show — which produced
+    # inverted rows like Alcaraz #2 / 7150 above Zverev #3 / 7790.
     print("\n[3] Assembling output...")
-    players_out = []
-    for pid, _ts, name, rank, _official_pts in top500:
+    scored = []
+    for pid, _ts, name, _official_rank, _official_pts in top500:
         tourney_pts = player_results.get(pid, {})
-        # JSON object keys must be strings for the frontend's String(index) lookups
-        tourney_pts_out = {str(idx): pts for idx, pts in tourney_pts.items()}
+        scored.append((pid, name, sum(tourney_pts.values()), tourney_pts))
+    scored.sort(key=lambda x: (-x[2], x[1]))
+
+    players_out = []
+    for rank, (pid, name, points, tourney_pts) in enumerate(scored, start=1):
         players_out.append({
             "id": pid,
             "name": format_player_name(name),
             "rank": rank,
-            "points": sum(tourney_pts.values()),
-            "tourneyPoints": tourney_pts_out,
+            "points": points,
+            "tourneyPoints": {str(idx): pts for idx, pts in tourney_pts.items()},
         })
 
     output = {

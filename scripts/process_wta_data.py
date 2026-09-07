@@ -458,17 +458,22 @@ def main():
         for pid, pts_by_idx in player_results.items()
     }
 
+    # Rank/sort by counted tourneyPoints sum (same rationale as process_data.py).
     print("\n[3] Assembling output...")
-    players_out = []
-    for pid, _ts, name, rank, _official_pts in top500:
+    scored = []
+    for pid, _ts, name, _official_rank, _official_pts in top500:
         tourney_pts = player_results.get(pid, {})
-        tourney_pts_out = {str(idx): pts for idx, pts in tourney_pts.items()}
+        scored.append((pid, name, sum(tourney_pts.values()), tourney_pts))
+    scored.sort(key=lambda x: (-x[2], x[1]))
+
+    players_out = []
+    for rank, (pid, name, points, tourney_pts) in enumerate(scored, start=1):
         players_out.append({
             "id": pid,
             "name": format_player_name(name),
             "rank": rank,
-            "points": sum(tourney_pts.values()),
-            "tourneyPoints": tourney_pts_out,
+            "points": points,
+            "tourneyPoints": {str(idx): pts for idx, pts in tourney_pts.items()},
         })
 
     output = {
