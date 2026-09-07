@@ -37,8 +37,14 @@ ROUND_RANK = {r: i for i, r in enumerate(ROUND_ORDER)}
 # win" structure (identical shape to the ATP Finals, per the same source).
 POINTS = {
     "G":    {"W": 2000, "F": 1300, "SF": 780,  "QF": 430, "R16": 240, "R32": 130, "R64": 70, "R128": 10},
+    # 96-draw WTA 1000 (Indian Wells, Miami, Madrid, Rome, Canada, Cincinnati, Beijing, …)
     "1000": {"W": 1000, "F": 650,  "SF": 390,  "QF": 215, "R16": 120, "R32": 65,  "R64": 35, "R128": 10},
-    "500":  {"W": 500,  "F": 325,  "SF": 195,  "QF": 108, "R16": 60,  "R32": 32},
+    # 56-draw WTA 1000 (Doha, Dubai, Wuhan, …) — first round is R64 worth 10, not 35
+    "1000_small": {"W": 1000, "F": 650, "SF": 390, "QF": 215, "R16": 120, "R32": 65, "R64": 10},
+    # 48-draw WTA 500
+    "500":  {"W": 500,  "F": 325,  "SF": 195,  "QF": 108, "R16": 60,  "R32": 32, "R64": 1},
+    # 28/30-draw WTA 500 (Queen's/London, Ningbo, Berlin, …) — first round R32 worth 1
+    "500_small": {"W": 500, "F": 325, "SF": 195, "QF": 108, "R16": 60, "R32": 1},
     "250":  {"W": 250,  "F": 163,  "SF": 98,   "QF": 54,  "R16": 30,  "R32": 1},
 }
 
@@ -170,17 +176,16 @@ def tourney_category(raw_name, season_year=""):
     return "250"
 
 
-def points_for_result(category, round_code, won_final, bye_downgrade=False, true_first_round=None):
+def points_for_result(category, round_code, won_final, bye_downgrade=False, true_first_round=None, small_draw=False):
     if won_final:
         round_code = "W"
+    if category == "1000" and small_draw:
+        category = "1000_small"
+    elif category == "500" and small_draw:
+        category = "500_small"
     pts_table = POINTS.get(category, POINTS["250"])
     if bye_downgrade and not won_final:
-        # WTA's bye rule (per Wikipedia's WTA rankings page) is broader than
-        # ATP's and doesn't have ATP's "zero it out at 500/250-level" special
-        # case: ANY category's bye-then-immediate-loss is simply scored as a
-        # first-round loss, full stop — never zero. Unconfirmed against a
-        # real WTA breakdown page; ATP's equivalent 500/250 rule (score 0)
-        # does NOT apply here per the documented WTA rule text.
+        # WTA bye rule: bye-then-immediate-loss scores as a first-round loss.
         return pts_table.get(true_first_round, 0)
     return pts_table.get(round_code, 0)
 
@@ -297,10 +302,12 @@ def main():
                 "surface": title_surface(r.get("surface", "")),
                 "winner": "",
                 "matches": [],
+                "rounds_seen": set(),
             }
         else:
             tourneys[key]["date_ts"] = min(tourneys[key]["date_ts"], ts)
             tourneys[key]["end_ts"] = max(tourneys[key]["end_ts"], ts)
+        tourneys[key]["rounds_seen"].add(rnd)
 
         winner_code = r.get("winner_code", "")
         home_id, away_id = r.get("home_id", ""), r.get("away_id", "")
@@ -336,6 +343,16 @@ def main():
     player_results = defaultdict(dict)
 
     for t_idx, (key, t_info) in enumerate(sorted_tourneys):
+        # Detect draw-size variant from which round labels appear in the CSV.
+        # 1000 without R128 → 56-draw table; 500 without R64 → 28/30-draw table.
+        rounds_seen = t_info.get("rounds_seen") or {m[0] for m in t_info["matches"]}
+        if t_info["category"] == "1000":
+            small_draw = "R128" not in rounds_seen
+        elif t_info["category"] == "500":
+            small_draw = "R64" not in rounds_seen
+        else:
+            small_draw = False
+
         tourney_list.append({
             "id": f"{key[1]}-{key[0]}",
             "name": t_info["name"],
@@ -417,6 +434,7 @@ def main():
             pts = points_for_result(
                 t_info["category"], last_round, entry["won_final"],
                 bye_downgrade=bye_downgrade, true_first_round=true_first_round,
+                small_draw=small_draw,
             )
             if pts > 0:
                 player_results[pid][t_idx] = pts
