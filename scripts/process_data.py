@@ -601,27 +601,21 @@ def main():
         for pid, pts_by_idx in player_results.items()
     }
 
-    # ---------- Assemble output ----------
-    # Rank and sort by OUR counted points (sum of tourneyPoints), not tennisdata
-    # embedded home_rank. Those embeds are frozen as of each player's last match
-    # and routinely disagree with the breakdown total we show — which produced
-    # inverted rows like Alcaraz #2 / 7150 above Zverev #3 / 7790.
+    # Rank/points from tennisdata.app's embedded official ranking snapshot
+    # (same contract as the old Sackmann pipeline / app.js unfiltered Points
+    # column). tourneyPoints remains our match-replay breakdown for the grid.
     print("\n[3] Assembling output...")
-    scored = []
-    for pid, _ts, name, _official_rank, _official_pts in top500:
-        tourney_pts = player_results.get(pid, {})
-        scored.append((pid, name, sum(tourney_pts.values()), tourney_pts))
-    scored.sort(key=lambda x: (-x[2], x[1]))
-
     players_out = []
-    for rank, (pid, name, points, tourney_pts) in enumerate(scored, start=1):
+    for pid, _ts, name, rank, official_pts in top500:
+        tourney_pts = player_results.get(pid, {})
         players_out.append({
             "id": pid,
             "name": format_player_name(name),
             "rank": rank,
-            "points": points,
+            "points": official_pts,
             "tourneyPoints": {str(idx): pts for idx, pts in tourney_pts.items()},
         })
+    players_out.sort(key=lambda p: (p["rank"], -p["points"], p["name"]))
 
     output = {
         "generated": date.today().isoformat(),

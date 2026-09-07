@@ -111,6 +111,9 @@ def united_cup_points(opponent_rank, stage="group"):
 WTA_500_NAME_OVERRIDES = {
     "Strasbourg", "Adelaide", "Abu Dhabi", "Berlin", "Charleston", "Stuttgart",
     "Eastbourne", "Washington", "Guadalajara", "Tokyo", "Ningbo", "Hamburg",
+    # tennisdata.app often labels these as plain city names without a tier flag
+    "Brisbane", "Bad Homburg", "London", "Seoul", "Osaka", "Hong Kong",
+    "Monterrey", "San Diego", "Zhengzhou",
 }
 
 # Real WTA cap structure (per en.wikipedia.org/wiki/WTA_rankings — genuinely
@@ -458,23 +461,24 @@ def main():
         for pid, pts_by_idx in player_results.items()
     }
 
-    # Rank/sort by counted tourneyPoints sum (same rationale as process_data.py).
+    # Rank/points come from tennisdata.app's embedded official ranking snapshot
+    # (matches WTA.com). tourneyPoints is our match-replay breakdown for the
+    # table/charts — it can undershoot the official total when 125/ITF results
+    # or commitment zeros aren't in the season CSVs, or when round labels are
+    # incomplete. The UI shows official points when unfiltered, and the sum of
+    # visible tourneyPoints when filters are on (see app.js).
     print("\n[3] Assembling output...")
-    scored = []
-    for pid, _ts, name, _official_rank, _official_pts in top500:
-        tourney_pts = player_results.get(pid, {})
-        scored.append((pid, name, sum(tourney_pts.values()), tourney_pts))
-    scored.sort(key=lambda x: (-x[2], x[1]))
-
     players_out = []
-    for rank, (pid, name, points, tourney_pts) in enumerate(scored, start=1):
+    for pid, _ts, name, rank, official_pts in top500:
+        tourney_pts = player_results.get(pid, {})
         players_out.append({
             "id": pid,
             "name": format_player_name(name),
             "rank": rank,
-            "points": points,
+            "points": official_pts,
             "tourneyPoints": {str(idx): pts for idx, pts in tourney_pts.items()},
         })
+    players_out.sort(key=lambda p: (p["rank"], -p["points"], p["name"]))
 
     output = {
         "generated": date.today().isoformat(),
