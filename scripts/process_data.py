@@ -16,7 +16,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from transform_utils import build_weekly_rankings, display_name as format_player_name, title_surface
+from transform_utils import build_weekly_rankings, display_name as format_player_name, resolve_ranking_points, title_surface
 
 # ---------- ATP points schedule (unchanged from the Sackmann-based script) ----------
 # "RR" (round-robin, used only by the season-ending Finals) sits at the bottom:
@@ -601,21 +601,31 @@ def main():
         for pid, pts_by_idx in player_results.items()
     }
 
-    # Rank/points from tennisdata.app's embedded official ranking snapshot
-    # (same contract as the old Sackmann pipeline / app.js unfiltered Points
-    # column). tourneyPoints remains our match-replay breakdown for the grid.
+    # Prefer embedded official points when fresh; if last match is stale, the
+    # embed no longer tracks ranking decay — fall back to tourneyPoints sum.
     print("\n[3] Assembling output...")
-    players_out = []
-    for pid, _ts, name, rank, official_pts in top500:
+    scored = []
+    stale_n = 0
+    for pid, last_ts, name, _official_rank, official_pts in top500:
         tourney_pts = player_results.get(pid, {})
+        computed = sum(tourney_pts.values())
+        points = resolve_ranking_points(last_ts, latest_ts, official_pts, computed)
+        if points != official_pts:
+            stale_n += 1
+        scored.append((pid, name, points, tourney_pts))
+    scored.sort(key=lambda x: (-x[2], x[1]))
+    if stale_n:
+        print(f"  Used replay totals for {stale_n} player(s) with stale ranking embeds.")
+
+    players_out = []
+    for rank, (pid, name, points, tourney_pts) in enumerate(scored, start=1):
         players_out.append({
             "id": pid,
             "name": format_player_name(name),
             "rank": rank,
-            "points": official_pts,
+            "points": points,
             "tourneyPoints": {str(idx): pts for idx, pts in tourney_pts.items()},
         })
-    players_out.sort(key=lambda p: (p["rank"], -p["points"], p["name"]))
 
     output = {
         "generated": date.today().isoformat(),

@@ -47,6 +47,23 @@ def title_surface(raw: str) -> str:
     return s[:1].upper() + s[1:].lower() if s else s
 
 
+# Match-embedded home_rank/home_points are frozen as of that match. Players who
+# haven't competed recently keep an inflated snapshot while real tour rankings
+# decay (e.g. Mboko still showing June's #9 / 3710 in September). Prefer the
+# embed when it's fresh; otherwise fall back to our in-window replay sum.
+EMBED_STALE_DAYS = 14
+
+
+def resolve_ranking_points(last_match_ts, latest_ts, official_pts, computed_pts, stale_days=EMBED_STALE_DAYS):
+    """Return official embed points if recent enough, else computed tourney sum."""
+    if not last_match_ts or not latest_ts:
+        return computed_pts
+    age_days = (latest_ts - last_match_ts) / 86400.0
+    if age_days <= stale_days:
+        return official_pts
+    return computed_pts
+
+
 def build_weekly_rankings(all_tour_rows, cutoff_ts: int, end_ts: int, max_rank: int = 500):
     """
     Approximate official Monday ranking lists from match-embedded ranks.
