@@ -55,12 +55,31 @@ ROUND_MAP = {
 
 GRAND_SLAMS = {"Australian Open", "French Open", "Roland Garros", "Wimbledon", "US Open"}
 
-# WTA 1000-level events — roster has shifted a bit year to year; verify against
-# the current WTA calendar if scoring looks off for one of these.
-WTA_1000 = {
-    "Indian Wells", "Miami", "Madrid", "Rome", "Montreal", "Toronto",
-    "Cincinnati", "Wuhan", "Beijing", "Doha", "Dubai",
+# WTA 500-level tournaments identified by name. tennisdata.app doesn't flag
+# tier, so this list is maintained by hand against the WTA calendar.
+# Do NOT put WTA 250s here (Hong Kong, Osaka are 250; Seoul was 500 in 2025
+# only and dropped back to 250 in 2026).
+WTA_500_ALWAYS = {
+    "Strasbourg", "Adelaide", "Abu Dhabi", "Berlin", "Charleston", "Stuttgart",
+    "Eastbourne", "Washington", "Guadalajara", "Tokyo", "Ningbo", "Hamburg",
+    "Brisbane", "Bad Homburg", "London",  # London = Queen's Club WTA 500
 }
+# Season-specific 500s (tier changes year to year).
+WTA_500_BY_SEASON = {
+    "2024": {"Seoul"},
+    "2025": {"Seoul"},
+}
+
+# Combined/virtually-combined WTA 1000s (mandatory "best 6" pool) vs
+# WTA-only 1000s (mandatory "best 1" pool). Extra 1000 results compete in
+# the best-7 "other" pool — see WTA rankings rules.
+WTA_1000_COMBINED = {
+    "Indian Wells", "Miami", "Madrid", "Rome", "Montreal", "Toronto",
+    "Cincinnati", "Beijing",
+}
+WTA_1000_NONCOMBINED = {"Doha", "Dubai", "Wuhan"}
+
+WTA_1000 = WTA_1000_COMBINED | WTA_1000_NONCOMBINED
 
 WTA_FINALS_NAMES = {"WTA Finals"}
 
@@ -104,33 +123,12 @@ def united_cup_points(opponent_rank, stage="group"):
             return pts
     return unranked_pts
 
-# WTA 500-level tournaments identified by name. Sackmann's source gave this tier
-# explicitly (level "P"); tennisdata.app doesn't, so this list has to be maintained
-# by hand — double-check against the current WTA calendar if scoring looks off for
-# one of these (roster shifts a little year to year).
-WTA_500_NAME_OVERRIDES = {
-    "Strasbourg", "Adelaide", "Abu Dhabi", "Berlin", "Charleston", "Stuttgart",
-    "Eastbourne", "Washington", "Guadalajara", "Tokyo", "Ningbo", "Hamburg",
-    # tennisdata.app often labels these as plain city names without a tier flag
-    "Brisbane", "Bad Homburg", "London", "Seoul", "Osaka", "Hong Kong",
-    "Monterrey", "San Diego", "Zhengzhou",
-}
-
-# Real WTA cap structure (per en.wikipedia.org/wiki/WTA_rankings — genuinely
-# DIFFERENT from the ATP structure, not just different numbers): 4 Grand
-# Slams + the WTA Finals bonus + ALL WTA 1000 results a player earns (the "6
-# combined + 1 WTA-only mandatory" tournaments are described as an
-# unconditional tier, with no ATP-style "replace a weak one with a later
-# 500/250" mechanism) + the player's best 7 results from United Cup/500/250
-# (the source also lists 125s and ITF W15+ in this pool, which this pipeline
-# doesn't track). This is NOT the same cap arithmetic as ATP's — no
-# replacement rule, and the "best of the rest" pool is 7 slots, not 14, since
-# the WTA 1000s aren't competing in it at all. Unconfirmed against a real WTA
-# breakdown page as of this writing (the ATP version of this logic went
-# through several rounds of real-page validation before landing correctly —
-# this WTA port hasn't yet, so it's worth checking the first time a total
-# looks off).
+# Real WTA singles structure (WTA rankings rules): 4 Grand Slams + best 6
+# combined WTA 1000s + best 1 non-combined WTA 1000 + best 7 other results
+# (extra 1000s, 500, 250, 125, ITF, United Cup) + Finals as a bonus 19th.
 BEST_OTHER_POOL_CAP = 7
+BEST_COMBINED_1000 = 6
+BEST_NONCOMBINED_1000 = 1
 
 EXCLUDED_NAME_SUBSTR = ("Billie Jean King Cup", "WIC")
 # "WIC" = wildcard playoff (e.g. into the US Open) — not a ranking-points event.
@@ -147,7 +145,13 @@ def clean_tournament_name(raw):
     return name.strip()
 
 
-def tourney_category(raw_name):
+def is_wta_500(name, season_year=""):
+    if name in WTA_500_ALWAYS:
+        return True
+    return name in WTA_500_BY_SEASON.get(str(season_year), set())
+
+
+def tourney_category(raw_name, season_year=""):
     if any(s in raw_name for s in EXCLUDED_NAME_SUBSTR):
         return None
     if is_tour_finals(raw_name):
@@ -161,7 +165,7 @@ def tourney_category(raw_name):
         return "F"
     if name in WTA_1000:
         return "1000"
-    if name in WTA_500_NAME_OVERRIDES:
+    if is_wta_500(name, season_year):
         return "500"
     return "250"
 
@@ -266,7 +270,7 @@ def main():
         raw_name = r.get("tournament", "")
         if "Qualification" in raw_name:
             continue
-        cat = tourney_category(raw_name)
+        cat = tourney_category(raw_name, r.get("season_year", ""))
         if cat is None:
             continue
         rnd_raw = r.get("round", "")
@@ -417,27 +421,37 @@ def main():
             if pts > 0:
                 player_results[pid][t_idx] = pts
 
-    # Cap each player's countable results per the real WTA structure: all
-    # Grand Slams + the WTA Finals always count, and — unlike ATP — EVERY
-    # WTA 1000 result a player earns also always counts (no ATP-style
-    # replacement mechanism). Only United Cup/500/250 compete for a separate,
-    # smaller pool of BEST_OTHER_POOL_CAP (7) slots. See the BEST_OTHER_POOL_CAP
-    # comment above for why this is structured differently from process_data.py.
+    # Cap per WTA rules: all Slams + Finals always count; best 6 combined
+    # WTA 1000s + best 1 non-combined WTA 1000; everything else (including
+    # surplus 1000s) competes for BEST_OTHER_POOL_CAP slots.
     for pid, pts_by_idx in player_results.items():
-        slam_idx, finals_idx, thousand_idx, pool_idx = [], [], [], []
+        slam_idx, finals_idx, combined_idx, noncombined_idx, pool_idx = [], [], [], [], []
         for idx in pts_by_idx:
             cat = tourney_list[idx]["category"]
+            name = tourney_list[idx]["name"]
             if cat == "G":
                 slam_idx.append(idx)
             elif cat == "F":
                 finals_idx.append(idx)
-            elif cat == "1000":
-                thousand_idx.append(idx)
+            elif cat == "1000" and name in WTA_1000_COMBINED:
+                combined_idx.append(idx)
+            elif cat == "1000" and name in WTA_1000_NONCOMBINED:
+                noncombined_idx.append(idx)
             else:
                 pool_idx.append(idx)
-        if len(pool_idx) > BEST_OTHER_POOL_CAP:
-            pool_idx.sort(key=lambda idx: -pts_by_idx[idx])
-            keep = set(slam_idx) | set(finals_idx) | set(thousand_idx) | set(pool_idx[:BEST_OTHER_POOL_CAP])
+
+        combined_idx.sort(key=lambda i: -pts_by_idx[i])
+        noncombined_idx.sort(key=lambda i: -pts_by_idx[i])
+        kept_combined = combined_idx[:BEST_COMBINED_1000]
+        kept_noncombined = noncombined_idx[:BEST_NONCOMBINED_1000]
+        # Surplus 1000 results fall into the best-of-rest pool.
+        pool_idx.extend(combined_idx[BEST_COMBINED_1000:])
+        pool_idx.extend(noncombined_idx[BEST_NONCOMBINED_1000:])
+        pool_idx.sort(key=lambda i: -pts_by_idx[i])
+        kept_pool = pool_idx[:BEST_OTHER_POOL_CAP]
+
+        keep = set(slam_idx) | set(finals_idx) | set(kept_combined) | set(kept_noncombined) | set(kept_pool)
+        if len(keep) < len(pts_by_idx):
             player_results[pid] = {idx: pts for idx, pts in pts_by_idx.items() if idx in keep}
 
     # Drop any tournament where nobody actually earned points (e.g. a Billie
