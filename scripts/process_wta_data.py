@@ -97,15 +97,10 @@ def is_tour_finals(raw_name):
     return raw_name.startswith("Finals - ") and " WTA" in raw_name
 
 
-# United Cup is a mixed-team event whose singles rubbers carry real ranking
-# points for BOTH tours from the same unified formula (a flat amount per win,
-# based on the opponent's ranking tier — see UNITED_CUP_TABLE). This mirrors
-# process_data.py's ATP implementation exactly; the tier values themselves
-# are carried over unconfirmed against a real WTA breakdown page specifically
-# (they were sourced from Wikipedia's general United Cup points table, not
-# verified against a WTA player's page the way the ATP tiers were) — worth
-# double-checking against a real WTA page if a player's total looks off by a
-# small, United-Cup-shaped amount.
+# United Cup: ATP awards points by opponent-rank tier; WTA awards a flat total
+# based on how many singles matches the player won (WTA.com / tennis365 2026).
+# Do NOT reuse the ATP opponent-rank table here — that was over/under-counting
+# WTA players by small United-Cup-shaped amounts (e.g. Mboko 20 vs real 32).
 def is_united_cup(raw_name):
     return "United Cup" in raw_name
 
@@ -114,20 +109,19 @@ def is_united_cup_playoffs(raw_name):
     return is_united_cup(raw_name) and "Play Offs" in raw_name
 
 
-UNITED_CUP_TABLE = {
-    "group": ([(10, 55), (20, 45), (30, 40), (50, 35), (100, 25), (250, 20)], 15),
-    "QF":    ([(10, 80), (20, 65), (30, 55), (50, 40), (100, 35), (250, 25)], 20),
-    "SF":    ([(10, 130), (20, 105), (30, 90), (50, 60), (100, 40), (250, 35)], 25),
-    "F":     ([(10, 180), (20, 140), (30, 120), (50, 90), (100, 60), (250, 40)], 35),
-}
-
-
-def united_cup_points(opponent_rank, stage="group"):
-    tiers, unranked_pts = UNITED_CUP_TABLE.get(stage, UNITED_CUP_TABLE["group"])
-    for max_rank, pts in tiers:
-        if opponent_rank <= max_rank:
-            return pts
-    return unranked_pts
+def wta_united_cup_points(total_wins, knockout_wins):
+    """WTA United Cup singles points from match-win count (max 500)."""
+    if total_wins >= 5:
+        return 500
+    if total_wins == 4:
+        return 325
+    if total_wins == 3:
+        return 150
+    if total_wins == 2:
+        return 108 if knockout_wins >= 1 else 90
+    if total_wins == 1:
+        return 60 if knockout_wins >= 1 else 32
+    return 1  # played, zero wins
 
 # Real WTA singles structure (WTA rankings rules): 4 Grand Slams + best 6
 # combined WTA 1000s + best 1 non-combined WTA 1000 + best 7 other results
@@ -210,8 +204,11 @@ def main():
     print("\n[1] Loading season CSV(s)...")
     rows = load_season_rows()
 
-    # 52-week rolling window, matching the WTA ranking points expiry period.
-    cutoff_ts = int(datetime.combine(date.today() - timedelta(weeks=52), datetime.min.time()).timestamp())
+    # 52-week rolling window. Add 7 days of slack so tournaments whose points
+    # entered rankings on the Monday *after* they ended (WTA rule) are not
+    # dropped a few days early — e.g. US Open 2025 (ended Sep 6, counted from
+    # Mon Sep 8) must still count on Mon Sep 7 2026 for Mboko's 2531 total.
+    cutoff_ts = int(datetime.combine(date.today() - timedelta(weeks=52, days=7), datetime.min.time()).timestamp())
 
     tour_rows = [
         r for r in rows
@@ -377,24 +374,21 @@ def main():
             continue
 
         if t_info["category"] == "UC":
-            # United Cup scoring is additive per match won, worth a flat
-            # amount depending on the opponent's ranking and the stage
-            # (group vs QF/SF/F) — see united_cup_points/UNITED_CUP_TABLE.
-            # Mirrors process_data.py's ATP implementation exactly.
-            group_matches = [m for m in t_info["matches"] if not m[5]]
-            playoff_matches = sorted((m for m in t_info["matches"] if m[5]), key=lambda m: m[4])
-            uc_pts = defaultdict(int)
-            for rnd, winner_id, loser_id, loser_rank, ts, is_playoff in group_matches:
-                if winner_id in top500_ids and loser_rank is not None:
-                    uc_pts[winner_id] += united_cup_points(loser_rank, "group")
-            if len(playoff_matches) == 7:
-                stages = ["QF"] * 4 + ["SF"] * 2 + ["F"] * 1
-            else:
-                stages = ["group"] * len(playoff_matches)
-            for (rnd, winner_id, loser_id, loser_rank, ts, is_playoff), stage in zip(playoff_matches, stages):
-                if winner_id in top500_ids and loser_rank is not None:
-                    uc_pts[winner_id] += united_cup_points(loser_rank, stage)
-            for pid, pts in uc_pts.items():
+            # WTA: flat total from number of singles wins (and whether any
+            # were in the knockout rounds) — see wta_united_cup_points.
+            wins = defaultdict(lambda: {"total": 0, "knockout": 0, "played": False})
+            for rnd, winner_id, loser_id, _, _, is_playoff in t_info["matches"]:
+                for pid in (winner_id, loser_id):
+                    if pid in top500_ids:
+                        wins[pid]["played"] = True
+                if winner_id in top500_ids:
+                    wins[winner_id]["total"] += 1
+                    if is_playoff:
+                        wins[winner_id]["knockout"] += 1
+            for pid, w in wins.items():
+                if not w["played"]:
+                    continue
+                pts = wta_united_cup_points(w["total"], w["knockout"])
                 if pts > 0:
                     player_results[pid][t_idx] = pts
             continue
