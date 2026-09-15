@@ -47,21 +47,44 @@ def title_surface(raw: str) -> str:
     return s[:1].upper() + s[1:].lower() if s else s
 
 
-# Match-embedded home_rank/home_points are frozen as of that match. Players who
-# haven't competed recently keep an inflated snapshot while real tour rankings
-# decay (e.g. Mboko still showing June's #9 / 3710 in September). Prefer the
-# embed when it's fresh; otherwise fall back to our in-window replay sum.
+# Match-embedded home_rank/home_points are frozen as of that match.
+# - Stale embeds (no recent matches): real rankings decay while the snapshot
+#   stays high (e.g. Mboko still showing June's #9 / 3710 in September) → use
+#   the in-window replay sum.
+# - Embeds also lag the Monday ranking update after a tournament week ends
+#   (Sunday final still carries pre-update points on Monday). Once a ranking
+#   Monday has passed since the player's last match, trust the replay — for
+#   both ATP and WTA.
 EMBED_STALE_DAYS = 14
 
 
-def resolve_ranking_points(last_match_ts, latest_ts, official_pts, computed_pts, stale_days=EMBED_STALE_DAYS):
-    """Return official embed points if recent enough, else computed tourney sum."""
-    if not last_match_ts or not latest_ts:
+def _ranking_mondays_since(last_match_day: date, as_of: date) -> int:
+    """Count ATP/WTA ranking Mondays strictly after last_match_day through as_of."""
+    if as_of <= last_match_day:
+        return 0
+    # First Monday strictly after the match day.
+    days_until_mon = (7 - last_match_day.weekday()) % 7
+    first_monday = last_match_day + timedelta(days=days_until_mon or 7)
+    if first_monday > as_of:
+        return 0
+    return (as_of - first_monday).days // 7 + 1
+
+
+def resolve_ranking_points(last_match_ts, latest_ts, official_pts, computed_pts, stale_days=EMBED_STALE_DAYS, as_of=None):
+    """Pick embed points or computed tourney sum for the Points column."""
+    if not last_match_ts:
         return computed_pts
-    age_days = (latest_ts - last_match_ts) / 86400.0
-    if age_days <= stale_days:
-        return official_pts
-    return computed_pts
+    as_of = as_of or date.today()
+    last_day = date.fromtimestamp(int(last_match_ts))
+    age_days = (as_of - last_day).days
+    if age_days > stale_days:
+        return computed_pts
+    # Match embeds freeze mid-event; Monday's published ranking is the truth.
+    if _ranking_mondays_since(last_day, as_of) >= 1:
+        return computed_pts
+    if computed_pts > official_pts:
+        return computed_pts
+    return official_pts
 
 
 def build_weekly_rankings(all_tour_rows, cutoff_ts: int, end_ts: int, max_rank: int = 500):

@@ -46,6 +46,8 @@ POINTS = {
     # 28/30-draw WTA 500 (Queen's/London, Ningbo, Berlin, …) — first round R32 worth 1
     "500_small": {"W": 500, "F": 325, "SF": 195, "QF": 108, "R16": 60, "R32": 1},
     "250":  {"W": 250,  "F": 163,  "SF": 98,   "QF": 54,  "R16": 30,  "R32": 1},
+    # WTA 125 (tennisdata.app: "Chall. Women") — 2025/26 chart
+    "125":  {"W": 125,  "F": 81,   "SF": 49,   "QF": 27,  "R16": 15,  "R32": 1},
 }
 
 ROUND_MAP = {
@@ -63,16 +65,16 @@ GRAND_SLAMS = {"Australian Open", "French Open", "Roland Garros", "Wimbledon", "
 
 # WTA 500-level tournaments identified by name. tennisdata.app doesn't flag
 # tier, so this list is maintained by hand against the WTA calendar.
-# Do NOT put WTA 250s here (Hong Kong, Osaka are 250; Seoul was 500 in 2025
-# only and dropped back to 250 in 2026).
+# Do NOT put WTA 250s here (Hong Kong, Osaka are 250; Eastbourne dropped from
+# 500 to 250 for 2026; Seoul was 500 in 2025 only).
 WTA_500_ALWAYS = {
     "Strasbourg", "Adelaide", "Abu Dhabi", "Berlin", "Charleston", "Stuttgart",
-    "Eastbourne", "Washington", "Guadalajara", "Tokyo", "Ningbo", "Hamburg",
+    "Washington", "Guadalajara", "Tokyo", "Ningbo", "Hamburg",
     "Brisbane", "Bad Homburg", "London",  # London = Queen's Club WTA 500
 }
 # Season-specific 500s (tier changes year to year).
 WTA_500_BY_SEASON = {
-    "2024": {"Seoul"},
+    "2024": {"Seoul", "Eastbourne"},
     "2025": {"Seoul"},
 }
 
@@ -158,6 +160,9 @@ def tourney_category(raw_name, season_year=""):
         return "F"
     if is_united_cup(raw_name):
         return "UC"
+    # WTA 125s are labeled "… Chall. Women" in tennisdata.app (tour_type WTA Chall).
+    if "Chall" in raw_name:
+        return "125"
     name = clean_tournament_name(raw_name)
     if name in GRAND_SLAMS:
         return "G"
@@ -204,25 +209,33 @@ def main():
     print("\n[1] Loading season CSV(s)...")
     rows = load_season_rows()
 
-    # 52-week rolling window. Add 7 days of slack so tournaments whose points
-    # entered rankings on the Monday *after* they ended (WTA rule) are not
-    # dropped a few days early — e.g. US Open 2025 (ended Sep 6, counted from
-    # Mon Sep 8) must still count on Mon Sep 7 2026 for Mboko's 2531 total.
-    cutoff_ts = int(datetime.combine(date.today() - timedelta(weeks=52, days=7), datetime.min.time()).timestamp())
+    # 52-week window relative to the current ranking Monday (same rule as ATP).
+    # A tournament whose week-Monday is exactly 52 weeks before this ranking
+    # Monday falls off — e.g. Guadalajara week of Sep 2025 drops on Mon Sep 14
+    # 2026 (Jovic 2390). The old today−52w−7d slack kept that title alive a
+    # week too long.
+    today = date.today()
+    ranking_monday = today - timedelta(days=today.weekday())
+    cutoff_day = ranking_monday - timedelta(weeks=52)
+    cutoff_ts = int(datetime.combine(cutoff_day, datetime.min.time()).timestamp())
 
+    # WTA Tour + WTA 125 Challengers (best-other pool; e.g. Jovic's Austin SF).
     tour_rows = [
         r for r in rows
-        if r.get("tour_type_human") == "WTA Tour" and int(r.get("date_timestamp", "0")) >= cutoff_ts
+        if r.get("tour_type_human") in ("WTA Tour", "WTA Chall")
+        and int(r.get("date_timestamp", "0")) >= cutoff_ts
     ]
-    print(f"  {len(tour_rows)} WTA Tour rows in the 52-week window (of {len(rows)} total)")
+    print(f"  {len(tour_rows)} WTA Tour/Challenger rows in the 52-week window (of {len(rows)} total)")
 
-    # All WTA Tour rows regardless of date — used ONLY for tournament grouping
+    # All Tour/Chall rows regardless of date — used ONLY for tournament grouping
     # (section 2). A tournament must be judged in-or-out of the window as one
     # whole unit, not row by row — otherwise a player eliminated a few days
     # before the cutoff falls out of it while the eventual finalists (playing
     # later in the same event) stay in, splitting one tournament's players
     # inconsistently. See process_data.py for the full rationale.
-    all_wta_rows = [r for r in rows if r.get("tour_type_human") == "WTA Tour"]
+    all_wta_rows = [
+        r for r in rows if r.get("tour_type_human") in ("WTA Tour", "WTA Chall")
+    ]
 
     latest_seen = {}
 
@@ -329,10 +342,18 @@ def main():
         is_playoff = is_united_cup_playoffs(raw_name)
         tourneys[key]["matches"].append((rnd, winner_id, loser_id, loser_rank, ts, is_playoff))
 
-    # Apply the 52-week cutoff once per whole tournament (its latest match
-    # date), not per row — see all_wta_rows note above.
+    # Apply the 52-week cutoff once per whole tournament using the week-Monday
+    # of its LATEST match. Start-date cutoffs drop titles a week early when the
+    # event begins in the prior ISO week (e.g. Seoul 2025 opened Sun 14 Sep in
+    # the week of 8 Sep but finals were 21 Sep — points stay through the
+    # ranking Monday of 14 Sep 2026). Guadalajara 2025 (ended 14 Sep) still
+    # falls off on that same Monday.
+    def week_monday_ts(ts):
+        d = date.fromtimestamp(ts)
+        return int(datetime.combine(d - timedelta(days=d.weekday()), datetime.min.time()).timestamp())
+
     sorted_tourneys = sorted(
-        ((k, t) for k, t in tourneys.items() if t["end_ts"] >= cutoff_ts),
+        ((k, t) for k, t in tourneys.items() if week_monday_ts(t["end_ts"]) >= cutoff_ts),
         key=lambda x: (x[1]["date_ts"], x[1]["name"]),
     )
 
@@ -454,10 +475,16 @@ def main():
 
         combined_idx.sort(key=lambda i: -pts_by_idx[i])
         noncombined_idx.sort(key=lambda i: -pts_by_idx[i])
+        # First-round 10-pt combined 1000 finishes compete in the other pool
+        # rather than padding the mandatory best-6 (matches published totals
+        # for players like Jovic whose 6th combined is only a bye-loss 10).
+        combined_pad = [i for i in combined_idx if pts_by_idx[i] <= 10]
+        combined_idx = [i for i in combined_idx if pts_by_idx[i] > 10]
         kept_combined = combined_idx[:BEST_COMBINED_1000]
         kept_noncombined = noncombined_idx[:BEST_NONCOMBINED_1000]
         # Surplus 1000 results fall into the best-of-rest pool.
         pool_idx.extend(combined_idx[BEST_COMBINED_1000:])
+        pool_idx.extend(combined_pad)
         pool_idx.extend(noncombined_idx[BEST_NONCOMBINED_1000:])
         pool_idx.sort(key=lambda i: -pts_by_idx[i])
         kept_pool = pool_idx[:BEST_OTHER_POOL_CAP]

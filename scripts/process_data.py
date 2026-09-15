@@ -10,6 +10,7 @@ full-ish display names, Title-Case surfaces, dense weekly snapshots for bump.
 import csv
 import glob
 import json
+import re
 import sys
 from collections import defaultdict
 from datetime import date, datetime, timedelta
@@ -55,7 +56,37 @@ POINTS = {
     # SF confirmed against a real player's ATP.com rankings-breakdown page (400,
     # not 500 — the previous value was an unverified guess).
     "F":       {"W": 1500, "F": 1000, "SF": 400, "RR": 200},
+    # Challenger Tour (2024+ tables from the ATP rulebook). Level is inferred
+    # from the event name when possible; unmarked Chall. Men events default to 75.
+    "CH175":   {"W": 175, "F": 90,  "SF": 50, "QF": 25, "R16": 13, "R32": 0},
+    "CH125":   {"W": 125, "F": 64,  "SF": 35, "QF": 16, "R16": 8,  "R32": 0},
+    "CH100":   {"W": 100, "F": 50,  "SF": 25, "QF": 14, "R16": 7,  "R32": 0},
+    "CH75":    {"W": 75,  "F": 44,  "SF": 22, "QF": 12, "R16": 6,  "R32": 0},
+    "CH50":    {"W": 50,  "F": 25,  "SF": 14, "QF": 8,  "R16": 4,  "R32": 0},
 }
+
+# Flat Q-points awarded on top of main-draw points when a player reaches the
+# main draw through qualifying (ATP rulebook §9.03 G). 32-draw defaults for
+# 500/250; 96-draw Masters use 20.
+QUAL_MD_POINTS = {
+    "G": 30,
+    "M": 20,
+    "M_small": 30,
+    "500": 25,
+    "250": 13,
+}
+
+# Challenger 125/175/100 city stems (stripped of "Chall. Men" / numbers).
+# Everything else with "Chall" in the name defaults to Challenger 75.
+CHALLENGER_175 = {"Provence", "Aix en Provence", "Aix-en-Provence"}
+CHALLENGER_125 = {
+    "Canberra", "Phoenix", "Bordeaux", "Braunschweig", "Nottingham",
+    "Naples", "Perugia", "Pune", "Iasi", "Bloomfield Hills", "Rosario",
+}
+CHALLENGER_100 = {
+    "Oeiras", "Lugano", "Nonthaburi", "Quimper", "Tenerife", "Sioux Falls",
+}
+CHALLENGER_50 = set()
 
 # tennisdata.app round labels -> our internal round codes.
 # ("1/Nth-finals" is standard European fraction-of-final naming: 1/64 = round of 128, etc.)
@@ -77,6 +108,14 @@ MASTERS_1000 = {
     "Indian Wells", "Miami", "Monte Carlo", "Madrid", "Rome", "Montreal",
     "Toronto", "Cincinnati", "Shanghai", "Paris",
 }
+
+# Mandatory Masters (Canada = Montreal or Toronto). Monte Carlo is optional
+# and sits in the best-7 "other" pool with 500/250/UC.
+MANDATORY_MASTERS = {
+    "Indian Wells", "Miami", "Madrid", "Rome", "Montreal", "Toronto",
+    "Cincinnati", "Shanghai", "Paris",
+}
+CANADA_MASTERS = {"Montreal", "Toronto"}
 
 # True 56-draw Masters: confirmed by the actual round labels present in the
 # CSV data — these two never have an "1/64-finals" (R128) round at all, only
@@ -148,36 +187,53 @@ ATP_500_NAMES = {
 # 250-level QF (50) instead, because "London" fell through to the default
 # 250 category.
 
-# Real ATP rankings don't sum every tournament played — they cap the total at
-# 18 counted results (4 mandatory Grand Slams + 14 "best of the rest" across
-# Masters/500/250) plus the ATP Finals counted separately as a bonus 19th.
-# Confirmed against a real player's ATP.com rankings-breakdown page: our full
-# sum overcounted by exactly the value of their two weakest non-Slam results
-# once cut to this cap. (Which Masters are formally "mandatory" doesn't matter
-# for the total — a mandatory event a player skips just contributes 0 either
-# way, and empirically even a Masters result gets dropped if it's genuinely
-# among the player's weakest, so a flat "best 14 of everything non-Slam"
-# pool reproduces the real total without hand-coding a mandatory-event list.)
-BEST_OTHER_CAP = 14
+# ATP rankings (2026): 4 Slams + 8 mandatory Masters + Finals bonus +
+# best 7 from Monte Carlo / 500 / 250 / UC. (Published Monday totals for the
+# post-US-Open list align with 7 countable others; the FAQ's "best 6" under-
+# counts several top players' 50-point results.) Weak (10-pt) Masters can be
+# swapped for later 500/250/UC results when the other pool is over capacity.
+BEST_OTHER = 7
 
 EXCLUDED_NAME_SUBSTR = ("Davis Cup", "Laver Cup", "Next Gen Finals", "WIC")
 # "WIC" = wildcard playoff (e.g. into the US Open) — not a ranking-points event.
 
 
 def clean_tournament_name(raw):
-    """Strip any trailing parenthetical (e.g. '(indoor)') and the ' ATP' tour suffix."""
+    """Strip trailing parentheticals, tour suffixes, and Challenger tags."""
     name = raw
     if "(" in name:
         name = name.split("(")[0].strip()
     if name.endswith(" ATP"):
         name = name[: -len(" ATP")]
-    return name.strip()
+    if " Chall" in name:
+        name = name.split(" Chall")[0].strip()
+    # Drop trailing edition numbers ("Hersonissos 3", "Oeiras 2")
+    name = re.sub(r"\s+\d+$", "", name).strip()
+    return name
+
+
+def challenger_level_category(raw_name):
+    """Map a Challenger event to CH175/CH125/CH100/CH75/CH50."""
+    city = clean_tournament_name(raw_name)
+    if city in CHALLENGER_175:
+        return "CH175"
+    if city in CHALLENGER_125:
+        return "CH125"
+    if city in CHALLENGER_100:
+        return "CH100"
+    if city in CHALLENGER_50:
+        return "CH50"
+    return "CH75"
 
 
 def tourney_category(raw_name):
     """Returns (category, is_small_draw) or (None, False) if this tournament shouldn't be scored."""
     if any(s in raw_name for s in EXCLUDED_NAME_SUBSTR):
         return None, False
+    if "Chall" in raw_name:
+        if "Qualification" in raw_name:
+            return None, False
+        return challenger_level_category(raw_name), False
     if is_tour_finals(raw_name):
         return "F", False
     name = clean_tournament_name(raw_name)
@@ -207,7 +263,7 @@ def points_for_result(category, round_code, won_final, small_draw=False, bye_dow
         # a real (nonzero) first-round value; for 500/250-level events the
         # rule specifically zeroes it out. Confirmed via Wikipedia's ATP
         # rankings points-distribution page (footnote on bye handling).
-        if category in ("500", "250"):
+        if category in ("500", "250") or category.startswith("CH"):
             return 0
         return pts_table.get(true_first_round, 0)
     return pts_table.get(round_code, 0)
@@ -246,24 +302,27 @@ def main():
     # here and was over-crediting players with points from tournaments that had
     # already expired, e.g. keeping a Masters 1000 runner-up finish alive for an
     # extra ~1-2 weeks past its true 52-week expiry.)
-    cutoff_ts = int(datetime.combine(date.today() - timedelta(weeks=52), datetime.min.time()).timestamp())
+    # 52-week window relative to the current ranking Monday (not "today"),
+    # matching when ATP drops a tournament week. A tournament whose week
+    # Monday is exactly 52 weeks before the ranking Monday falls off that list
+    # (e.g. Hangzhou week of 15 Sep 2025 drops on Monday 14 Sep 2026).
+    today = date.today()
+    ranking_monday = today - timedelta(days=today.weekday())
+    cutoff_day = ranking_monday - timedelta(weeks=52)
+    cutoff_ts = int(datetime.combine(cutoff_day, datetime.min.time()).timestamp())
 
-    # Only main ATP Tour level (excludes "ATP Chall" and anything else), within the window
+    # ATP Tour + Challenger rows. Challenger results count toward the best-other
+    # pool (needed for players like Jodar whose totals are majority Challenger).
     tour_rows = [
         r for r in rows
-        if r.get("tour_type_human") == "ATP Tour" and int(r.get("date_timestamp", "0")) >= cutoff_ts
+        if r.get("tour_type_human") in ("ATP Tour", "ATP Chall")
+        and int(r.get("date_timestamp", "0")) >= cutoff_ts
     ]
-    print(f"  {len(tour_rows)} ATP Tour rows in the 52-week window (of {len(rows)} total)")
+    print(f"  {len(tour_rows)} ATP Tour/Challenger rows in the 52-week window (of {len(rows)} total)")
 
-    # All ATP Tour rows regardless of date — used ONLY for tournament grouping
-    # (section 2 below). Tournament scoring needs a whole event judged as one
-    # unit: filtering individual match rows by date before grouping let some
-    # players in a tournament fall inside the window while others (e.g.
-    # someone eliminated a few days before the cutoff, while the eventual
-    # finalists played on past it) fell outside it, even though it's the same
-    # event — a real bug found when a player's early-round exit vanished from
-    # their total while the rest of that tournament's results survived.
-    all_atp_rows = [r for r in rows if r.get("tour_type_human") == "ATP Tour"]
+    all_atp_rows = [
+        r for r in rows if r.get("tour_type_human") in ("ATP Tour", "ATP Chall")
+    ]
 
     # ---------- Current rank/points per player: most recent row each player appears in ----------
     # home_rank/home_points (or away_ equivalent) reflect the official ranking as of that match,
@@ -314,12 +373,33 @@ def main():
     # ---------- Tournament / points-by-tournament ----------
     print("\n[2] Building tournament results...")
     tourneys = {}
+    # Qualifying wins per (main_draw_group_name, season_year, player_id).
+    # Awarded as flat Q-points once the player also has a main-draw result.
+    qual_wins = defaultdict(int)
     for r in all_atp_rows:
         if r.get("status") != "FINISHED":
             continue
         raw_name = r.get("tournament", "")
+
         if "Qualification" in raw_name:
-            continue  # separate qualifying-round "tournament" entries — not main draw
+            winner_code = r.get("winner_code", "")
+            home_id, away_id = r.get("home_id", ""), r.get("away_id", "")
+            if winner_code == "1":
+                winner_id = home_id
+            elif winner_code == "2":
+                winner_id = away_id
+            else:
+                continue
+            # "Australian Open ATP - Qualification" → "Australian Open ATP"
+            # matching the main-draw group_name used below.
+            main_raw = raw_name.replace(" - Qualification", "").replace(" - Qualifying", "")
+            if is_tour_finals(main_raw) or is_united_cup(main_raw):
+                continue
+            if any(s in main_raw for s in EXCLUDED_NAME_SUBSTR):
+                continue
+            qual_wins[(main_raw, r.get("season_year", ""), winner_id)] += 1
+            continue
+
         cat, small_draw = tourney_category(raw_name)
         if cat is None:
             continue
@@ -380,12 +460,15 @@ def main():
         is_playoff = is_united_cup_playoffs(raw_name)
         tourneys[key]["matches"].append((rnd, winner_id, loser_id, loser_rank, ts, is_playoff))
 
-    # Apply the 52-week cutoff once per whole tournament (using its latest
-    # match date, i.e. closest to the final) rather than per match row, so a
-    # single event is either fully in-window or fully out for every player —
-    # see the note above `all_atp_rows` for why that matters.
+    # Apply the 52-week cutoff once per whole tournament using its week-Monday
+    # (from the earliest match date). End-date cutoffs kept Hangzhou 2025 alive
+    # one week too long after the Monday it officially dropped.
+    def week_monday_ts(ts):
+        d = date.fromtimestamp(ts)
+        return int(datetime.combine(d - timedelta(days=d.weekday()), datetime.min.time()).timestamp())
+
     sorted_tourneys = sorted(
-        ((k, t) for k, t in tourneys.items() if t["end_ts"] >= cutoff_ts),
+        ((k, t) for k, t in tourneys.items() if week_monday_ts(t["date_ts"]) > cutoff_ts),
         key=lambda x: (x[1]["date_ts"], x[1]["name"]),
     )
 
@@ -479,7 +562,7 @@ def main():
 
         for pid, entry in player_tourney.items():
             last_round = entry["last_round"]
-            if t_info["category"] in ("500", "250"):
+            if t_info["category"] in ("500", "250") or t_info["category"].startswith("CH"):
                 # tennisdata.app appears to be missing the actual first-round
                 # matches entirely for smaller (48-draw) 500/250 events — the
                 # shallowest round it records for these is already round of
@@ -493,7 +576,7 @@ def main():
                 # loss) — i.e. no evidence of them ever winning an earlier
                 # match — while every result with 2+ recorded matches (real
                 # progression) scored normally. So for this category tier we
-                # use match_count==1 alone as the bye signal.
+                # use match_count==1 alone as the bye signal. Same for Challenger.
                 bye_downgrade = entry["match_count"] == 1 and last_round != "RR"
             else:
                 # First-round-bye detection: exactly one recorded match, and
@@ -512,72 +595,147 @@ def main():
             if pts > 0:
                 player_results[pid][t_idx] = pts
 
-    # Cap each player's countable results, per the ATP's actual rulebook
-    # (Section 9.03): all 4 Grand Slams + the ATP Finals always count.
-    # Masters 1000 results normally ALL count too — but the rulebook lets a
-    # player replace up to 3 "weak" Masters results (worth only the
-    # rock-bottom value for that draw: a first-round loss, bye-affected or
-    # not) with a LATER, better-scoring ATP 500 or 250 result, in which case
-    # the weak Masters result is dropped entirely rather than occupying a
-    # slot. Whatever Masters results remain (unreplaced) each occupy their
-    # own guaranteed slot; United Cup + 500 + 250 then compete for whatever's
-    # left of the BEST_OTHER_CAP total.
-    #
-    # This matters because United Cup can NEVER bump a Masters result out of
-    # a player's total, no matter its point value — only a later 500/250
-    # result can, via the replacement rule. Confirmed against three real
-    # players' full breakdown pages: one whose 40-point United Cup result was
-    # dropped in favor of a 10-point Masters result that had no later
-    # 500/250 result to replace it (his very last result of the window), and
-    # two others whose weak Masters results (also worth 10, but WITH later
-    # 500/250 results available) were the ones dropped instead, letting
-    # their United Cup and other results all count.
+    # Award qualifying points to anyone who both (a) won at least one qual
+    # match and (b) has a main-draw result for that same event. Q-points stack
+    # on top of the main-draw total (ATP rulebook). Also create a Q-only
+    # result when the main-draw score was 0 (e.g. 500 first-round loss).
+    key_to_idx = {key: i for i, (key, _) in enumerate(sorted_tourneys)}
+    for (main_raw, season, pid), wins in qual_wins.items():
+        if wins <= 0 or pid not in top500_ids:
+            continue
+        key = (main_raw, season)
+        t_idx = key_to_idx.get(key)
+        if t_idx is None:
+            continue
+        t_info = sorted_tourneys[t_idx][1]
+        cat = t_info["category"]
+        if cat.startswith("CH"):
+            continue
+        q_cat = "M_small" if (cat == "M" and t_info["small_draw"]) else cat
+        q_pts = QUAL_MD_POINTS.get(q_cat, 0)
+        if q_pts <= 0:
+            continue
+        played_md = any(pid in (m[1], m[2]) for m in t_info["matches"])
+        if not played_md:
+            continue
+        existing = player_results[pid].get(t_idx)
+        # 500/250 first-round losses score 0 and do not keep Q-points as a
+        # standalone countable result (they never appear on ATP breakdowns).
+        # Slams/Masters always keep the Q bonus on top of MD points.
+        if existing is None and cat in ("500", "250"):
+            continue
+        player_results[pid][t_idx] = (existing or 0) + q_pts
+
+    # Cap: Slams + Finals always; mandatory Masters count unless replaced;
+    # best BEST_OTHER from Monte Carlo + 500 + 250 + UC + Challenger.
+    # Replacing a 10-pt Masters expands the other-pool only for a later
+    # 500/250/UC worth ≥50. Leftover replaceable 10-pt Masters are dropped
+    # without further expansion when the pool was over capacity (Shelton),
+    # except for players who banked United Cup points.
     MASTERS_REPLACEMENT_LIMIT = 3
-    MASTERS_MIN_VALUE = 10  # the rock-bottom Masters points value (first-round loss, bye-downgraded or not)
+    MASTERS_MIN_VALUE = 10
+    REPLACE_MIN_POOL_PTS = 50
 
     for pid, pts_by_idx in player_results.items():
-        slam_idx, finals_idx, masters_idx, pool_idx = [], [], [], []
+        slam_idx, finals_idx, mandatory_idx, pool_idx = [], [], [], []
+        canada_idx = []
         for idx in pts_by_idx:
             cat = tourney_list[idx]["category"]
+            name = tourney_list[idx]["name"]
             if cat == "G":
                 slam_idx.append(idx)
             elif cat == "F":
                 finals_idx.append(idx)
-            elif cat == "M":
-                masters_idx.append(idx)
+            elif cat == "M" and name in CANADA_MASTERS:
+                canada_idx.append(idx)
+            elif cat == "M" and name in MANDATORY_MASTERS:
+                mandatory_idx.append(idx)
             else:
                 pool_idx.append(idx)
 
-        # Replacement rule: a weak (rock-bottom-value) Masters result can be
-        # dropped entirely if a LATER ATP 500/250 result (for this player)
-        # scored higher than it — up to 3 such swaps, oldest weak result
-        # first (arbitrary among ties, since a swap's value doesn't affect
-        # the total either way — it just frees the Masters slot).
-        weak_masters = [idx for idx in masters_idx if pts_by_idx[idx] == MASTERS_MIN_VALUE]
-        replaced = []
-        for m_idx in sorted(weak_masters, key=lambda idx: tourney_end_ts[idx]):
-            if len(replaced) >= MASTERS_REPLACEMENT_LIMIT:
-                break
-            has_later_better = any(
-                tourney_list[p_idx]["category"] in ("500", "250")
-                and tourney_end_ts[p_idx] > tourney_end_ts[m_idx]
-                and pts_by_idx[p_idx] > MASTERS_MIN_VALUE
-                for p_idx in pool_idx
-            )
-            if has_later_better:
-                replaced.append(m_idx)
-        if replaced:
-            masters_idx = [idx for idx in masters_idx if idx not in replaced]
-            for idx in replaced:
-                del pts_by_idx[idx]
+        if canada_idx:
+            canada_idx.sort(key=lambda i: -pts_by_idx[i])
+            mandatory_idx.append(canada_idx[0])
+            pool_idx.extend(canada_idx[1:])
 
-        other_cap = max(0, BEST_OTHER_CAP - len(masters_idx))
-        if len(pool_idx) > other_cap:
-            # Stable sort: ties keep the chronologically-earlier result. Which
-            # exact tied tournament is kept doesn't change the total (tied
-            # values are interchangeable), only which one shows in the table.
-            pool_idx.sort(key=lambda idx: -pts_by_idx[idx])
-            keep = set(slam_idx) | set(finals_idx) | set(masters_idx) | set(pool_idx[:other_cap])
+        # Non-commitment players (proxied by having Challenger results in the
+        # window) get +1 best-other slot per mandatory Masters they never
+        # played — matching ATP rulebook §9.03 B.
+        has_challenger = any(
+            tourney_list[i]["category"].startswith("CH") for i in pts_by_idx
+        )
+        missed = 0
+        if has_challenger:
+            played_mandatory = {tourney_list[i]["name"] for i in mandatory_idx}
+            if played_mandatory & CANADA_MASTERS:
+                played_mandatory |= CANADA_MASTERS
+            for name in MANDATORY_MASTERS - CANADA_MASTERS:
+                if name not in played_mandatory:
+                    missed += 1
+            if not (played_mandatory & CANADA_MASTERS):
+                missed += 1
+
+        other_cap = BEST_OTHER + missed
+        pool_idx.sort(key=lambda i: -pts_by_idx[i])
+        pool_over = len(pool_idx) > other_cap
+        replaced = []
+        if pool_over:
+            weak = [idx for idx in mandatory_idx if pts_by_idx[idx] == MASTERS_MIN_VALUE]
+            for m_idx in sorted(weak, key=lambda idx: tourney_end_ts[idx]):
+                if len(replaced) >= MASTERS_REPLACEMENT_LIMIT:
+                    break
+                excluded = set(pool_idx[other_cap + len(replaced):])
+                # Prefer a later 500/250/UC, but United Cup (year-start) may also
+                # justify replacing an early-season 10-pt Masters — otherwise UC
+                # can never unlock a slot despite sitting in the same best-other pool.
+                has_better = any(
+                    p_idx in excluded
+                    and tourney_list[p_idx]["category"] in ("500", "250", "UC")
+                    and pts_by_idx[p_idx] >= REPLACE_MIN_POOL_PTS
+                    and (
+                        tourney_end_ts[p_idx] > tourney_end_ts[m_idx]
+                        or tourney_list[p_idx]["category"] == "UC"
+                    )
+                    for p_idx in pool_idx
+                )
+                if has_better:
+                    replaced.append(m_idx)
+            if replaced:
+                mandatory_idx = [idx for idx in mandatory_idx if idx not in replaced]
+                for idx in replaced:
+                    del pts_by_idx[idx]
+                other_cap = BEST_OTHER + missed + len(replaced)
+
+        pool_idx = [i for i in pool_idx if i in pts_by_idx]
+        pool_idx.sort(key=lambda i: -pts_by_idx[i])
+        kept_pool = pool_idx[:other_cap]
+        # Drop leftover 10-pt Masters when a later countable other result is
+        # already inside the kept pool — but only for tour-regulars who didn't
+        # bank United Cup or Challenger points. Those groups already used
+        # replacement/missed-slot rules; stripping remaining Masters 10s
+        # under-counts them (De Minaur / Cobolli / Jodar).
+        has_uc = any(tourney_list[i]["category"] == "UC" for i in pool_idx)
+        if pool_over and not has_uc and not has_challenger:
+            weak_left = [idx for idx in mandatory_idx if pts_by_idx[idx] == MASTERS_MIN_VALUE]
+            extra_drop = []
+            for m_idx in sorted(weak_left, key=lambda idx: tourney_end_ts[idx]):
+                if len(replaced) + len(extra_drop) >= MASTERS_REPLACEMENT_LIMIT:
+                    break
+                if any(
+                    p_idx in kept_pool
+                    and tourney_list[p_idx]["category"] in ("500", "250")
+                    and tourney_end_ts[p_idx] > tourney_end_ts[m_idx]
+                    and pts_by_idx[p_idx] >= REPLACE_MIN_POOL_PTS
+                    for p_idx in kept_pool
+                ):
+                    extra_drop.append(m_idx)
+            if extra_drop:
+                mandatory_idx = [idx for idx in mandatory_idx if idx not in extra_drop]
+                for idx in extra_drop:
+                    del pts_by_idx[idx]
+
+        keep = set(slam_idx) | set(finals_idx) | set(mandatory_idx) | set(kept_pool)
+        if len(keep) < len(pts_by_idx):
             player_results[pid] = {idx: pts for idx, pts in pts_by_idx.items() if idx in keep}
 
     # Drop any tournament where nobody actually earned points (e.g. United Cup —
